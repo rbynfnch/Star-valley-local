@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireStaff } from "@/lib/admin/session";
 import { visibleAreas } from "@/lib/admin/access";
 import { buildThemeStyle } from "@/lib/tenant/theme";
@@ -19,8 +20,8 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/admin">)
         </div>
         <nav aria-label="Admin" className="mx-auto w-full max-w-6xl px-4 pb-2 text-sm">
           <ul className="flex flex-wrap gap-4">
-            {areas.includes("dashboard") && <li><a href="/admin" className="underline-offset-4 hover:underline">Dashboard</a></li>}
-            {areas.includes("businesses") && <li><a href="/admin/businesses" className="underline-offset-4 hover:underline">Businesses</a></li>}
+            {areas.includes("dashboard") && <li><Link href="/admin" className="underline-offset-4 hover:underline">Dashboard</Link></li>}
+            {areas.includes("businesses") && <li><Link href="/admin/businesses" className="underline-offset-4 hover:underline">Businesses</Link></li>}
           </ul>
         </nav>
       </header>

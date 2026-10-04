@@ -15,6 +15,7 @@ const ADMIN_COOKIE = process.env.ADMIN_COOKIE; // set by smoke-admin.mjs --layou
 const ADMIN_PAGES = [
   { path: '/admin', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Admin"]', min: 0 }, { sel: 'dl', min: 0 }] },
   { path: '/admin/businesses', visible: [{ sel: 'h1', min: 0 }, { sel: '#q', min: 0 }, { sel: 'ul.space-y-3 li', min: 0, hiddenAt: 768 }, { sel: 'table', min: 768 }, { sel: 'button[type="submit"]', min: 0 }] },
+  { path: '/admin/businesses/3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', visible: [{ sel: 'h1', min: 0 }, { sel: '#stage', min: 0 }, { sel: '#body', min: 0 }, { sel: 'dl', min: 0 }, { sel: 'ol', min: 0 }] },
   { path: '/admin/businesses?tier=free&page=2', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Pagination"]', min: 0 }] },
 ];
 const PUBLIC_PAGES = [

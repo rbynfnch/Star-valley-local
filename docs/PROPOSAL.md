@@ -75,6 +75,7 @@ Notes:
 | `…1700_import_businesses` | `import_businesses(tenant, rows)`: commits an approved CSV import. Always creates **prospects** (hidden), writes with source `import` so owner/admin edits survive re-imports, re-checks duplicates at write time, suffixes colliding slugs, and reports per row (created / updated / skipped_duplicate / error). security invoker: sales staff and service_role only |
 | `…1800_admin_dashboard` | `admin_dashboard_counts(tenant)` (the six CLAUDE.md §8 counts; staff only, errors for anyone else) and `my_staff_role(tenant)` (the caller's own role; platform admins are admin) |
 | `…1900_admin_business_list` | `admin_list_businesses(...)`: staff list with filters (status, community, category, tier, lead stage, verified), name/phone search with literal `%`/`_`, stable paging. Sales and admin only (editors are refused: CRM data). Missing CRM row = stage `new`; tier is `enhanced` only while a listing is live |
+| `…2000_admin_business_detail` | `admin_business_detail()` (one document: fields + per-field provenance, CRM, listing, placements, proofs without their evidence, contacts, opportunities, communications, marketing indicators), `set_lead_stage()` (upsert + audit note) and `add_communication()` (staff id is always the caller). Sales and admin only |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -362,3 +363,8 @@ columns and the Premium tier.
 ## Admin business list (admin slice, part 3)
 - `/admin/businesses`: GET filter form, table on desktop and cards on mobile (field sales), tap-to-call phones, 25 per page. Names are not links yet: business detail is the next page.
 - Filters come from the URL and are validated (`src/lib/admin/list-params.ts`); anything unrecognised is dropped before it reaches the database.
+
+## Business detail (admin slice, part 4)
+- `/admin/businesses/[id]`: profile data with who-last-wrote-it beside each value, verification and listing, placements, marketing opportunity indicators, contacts, opportunities, activity log, plus two forms: lead stage and "add to the log" (note, call, visit with outcome, DM, email, SMS, meeting, postcard; optional follow-up date, shown as 9:00 AM tenant time).
+- Not built yet from CLAUDE.md §8: editing profile fields, contacts and opportunities CRUD, services checklist editing, **photo on a field visit**, claim tools, placement actions, publish/archive.
+- A failed save keeps what was typed (bad signal in the field); browsers send CRLF newlines, stored as LF.

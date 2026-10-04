@@ -29,6 +29,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run smoke:profile` | end-to-end check of business profiles: Enhanced vs Free vs unclaimed rendering, JSON-LD, 404s, and a crawl of every profile in the sitemap (needs fixtures mode with `SVL_MEDIA_BASE_URL=/demo-media`) |
 | `npm run demo:media` | dev only: copies the placeholder seed images into `public/demo-media/` (gitignored) |
 | `npm run smoke:admin` | admin guard end to end against a **mock** of Supabase auth/RPC (not real Supabase). Add `--layout` to also run the real-browser layout check on the admin pages. Start the app with `NEXT_PUBLIC_SUPABASE_URL=http://localhost:54399 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon npm run dev` first |
+| `npm run e2e:admin` | drives the business-detail forms in a real browser (Playwright, installed globally, not a project dependency) against the same Supabase **mock**; same server setup as `smoke:admin` |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 
 ### Running without a Supabase project (development only)

@@ -62,7 +62,7 @@ export default async function BusinessesPage({ searchParams }: PageProps<"/admin
           <ul className="mt-3 space-y-3 md:hidden">
             {result.rows.map((r) => (
               <li key={r.id} className="rounded-card bg-surface-card p-4 shadow-card">
-                <p className="font-semibold text-text">{r.name}</p>
+                <p className="font-semibold text-text"><Link href={`/admin/businesses/${r.id}`} className="text-link underline">{r.name}</Link></p>
                 <p className="text-sm text-text-muted">{[r.category, r.community].filter(Boolean).join(" · ") || "No category or community yet"}</p>
                 <p className="mt-1 text-sm">{r.phone ? <a className="text-link underline" href={`tel:${r.phone.replace(/[^\d+]/g, "")}`}>{r.phone}</a> : <span className="text-text-subtle">No phone</span>}</p>
                 <p className="mt-2 text-xs text-text-body">{cap(r.status)} · {r.verification_level === "none" ? "Not verified" : `${cap(r.verification_level)} verified`} · {cap(r.tier)}{r.featured ? " · Featured" : ""} · Lead: {cap(r.lead_stage)}</p>
@@ -78,7 +78,7 @@ export default async function BusinessesPage({ searchParams }: PageProps<"/admin
               <tbody>
                 {result.rows.map((r) => (
                   <tr key={r.id} className="border-b border-slate-600/10 last:border-0">
-                    <th scope="row" className="px-3 py-2 font-semibold text-text">{r.name}</th>
+                    <th scope="row" className="px-3 py-2 font-semibold text-text"><Link href={`/admin/businesses/${r.id}`} className="text-link underline">{r.name}</Link></th>
                     <td className="px-3 py-2">{r.category ?? "–"}</td><td className="px-3 py-2">{r.community ?? "–"}</td>
                     <td className="px-3 py-2">{cap(r.status)}</td>
                     <td className="px-3 py-2">{r.verification_level === "none" ? "No" : cap(r.verification_level)}</td>

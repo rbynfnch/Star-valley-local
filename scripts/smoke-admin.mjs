@@ -10,42 +10,14 @@ const run = promisify(execFile);   // async: the mock server lives in THIS proce
 
 const port = process.argv[2] ?? '3101';
 const host = process.argv[3] ?? 'star-valley.localhost';
-const MOCK = 54399;
+import { BIZ, cookieFor, freshDetail, startMock, state } from './mock-supabase.mjs';
 const base = `http://localhost:${port}`;
 let failed = 0;
 const check = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} - ${m}`); if (!c) failed++; };
-
-const USERS = { 'tok-sales': { id: 'u-sales', email: 'sales@example.test', role: 'sales' }, 'tok-editor': { id: 'u-editor', email: 'editor@example.test', role: 'editor' }, 'tok-rando': { id: 'u-rando', email: 'rando@example.test', role: null } };
-const calls = []; let lastList = null; let listRows = [
+state.listRows = [
   { id: 'b1', slug: 'a', name: 'Alpha Plumbing', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Thayne', category: 'Plumbing', lead_stage: 'interested', tier: 'enhanced', featured: true },
   { id: 'b2', slug: 'b', name: 'Bravo Cafe', status: 'prospect', phone: null, verification_level: 'none', community: null, category: null, lead_stage: 'new', tier: 'free', featured: false }];
-const mock = http.createServer((req, res) => {
-  const tok = (req.headers.authorization ?? '').replace('Bearer ', '');
-  const u = USERS[tok];
-  let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
-    calls.push(`${req.method} ${req.url}`);
-    const json = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
-    if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }) : json(401, { msg: 'invalid' });
-    if (req.url.startsWith('/rest/v1/rpc/my_staff_role')) return json(200, u?.role ?? null);
-    if (req.url.startsWith('/rest/v1/rpc/admin_dashboard_counts')) {
-      if (!u?.role) return json(403, { code: '42501', message: 'staff only' });
-      return json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11 });
-    }
-    if (req.url.startsWith('/rest/v1/rpc/admin_list_businesses')) {
-      if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
-      lastList = JSON.parse(body || '{}'); return json(200, { total: listRows.length === 0 ? 0 : 60, rows: listRows });
-    }
-    if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Thayne' }]);
-    if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Plumbing' }]);
-    json(404, {});
-  });
-});
-await new Promise((r) => mock.listen(MOCK, r));
-
-const cookieFor = (tok) => {
-  const session = { access_token: tok, refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: USERS[tok]?.id ?? 'forged', email: USERS[tok]?.email ?? 'forged@example.test' } };
-  return `sb-localhost-auth-token=base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
-};
+const mock = await startMock();
 const get = async (path, tok) => {
   const r = await fetch(base + path, { redirect: 'manual', headers: { host: `${host}:${port}`, ...(tok ? { cookie: cookieFor(tok) } : {}) } });
   return { status: r.status, loc: r.headers.get('location'), body: await r.text(), headers: r.headers };
@@ -88,27 +60,58 @@ try {
   check(r.status === 200 && /Alpha Plumbing/.test(lt) && /Bravo Cafe/.test(lt), 'sales: the list shows the rows');
   check(/60 businesses/.test(lt) && /Page 1 of 3/.test(lt), 'shows the total and "Page 1 of 3" (25 per page)');
   check(/Gold verified/.test(lt) && /Not verified/.test(lt) && /Featured/.test(lt) && /Lead: Interested/.test(lt), 'badges are written out in words, not colour alone');
-  check(lastList.p_offset === 0 && lastList.p_limit === 25 && lastList.p_status === null, 'default filters reach the RPC unchanged');
+  check(state.lastList.p_offset === 0 && state.lastList.p_limit === 25 && state.lastList.p_status === null, 'default filters reach the RPC unchanged');
   check(/href="tel:3075550101"/.test(r.body), 'phone numbers are tap-to-call on mobile');
   check(/<label[^>]*for="q"/.test(r.body) && /<label[^>]*for="stage"/.test(r.body) && /<label[^>]*for="verified"/.test(r.body), 'every filter has a label');
   check(/<nav[^>]*aria-label="Pagination"/.test(r.body) && /rel="next"/.test(r.body) && !/rel="prev"/.test(r.body), 'pagination: Next on page 1, no Previous');
 
   r = await get('/admin/businesses?status=prospect&tier=enhanced&stage=lead&verified=yes&page=2&community=3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b&category=%27%3B--&q=roof', 'tok-sales');
-  check(lastList.p_status?.[0] === 'prospect' && lastList.p_tier === 'enhanced' && lastList.p_stage === null && lastList.p_verified === true && lastList.p_offset === 25 && lastList.p_q === 'roof', 'valid filters are forwarded, the invalid stage is dropped, page 2 = offset 25');
-  check(lastList.p_community === '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b' && lastList.p_category === null, 'a real id is kept; a hostile category id is dropped');
+  check(state.lastList.p_status?.[0] === 'prospect' && state.lastList.p_tier === 'enhanced' && state.lastList.p_stage === null && state.lastList.p_verified === true && state.lastList.p_offset === 25 && state.lastList.p_q === 'roof', 'valid filters are forwarded, the invalid stage is dropped, page 2 = offset 25');
+  check(state.lastList.p_community === '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b' && state.lastList.p_category === null, 'a real id is kept; a hostile category id is dropped');
   check(/rel="prev"/.test(r.body) && /Page 2 of 3/.test(text(r.body)), 'page 2 has Previous');
   check(/value="roof"/.test(r.body), 'the search box keeps what was typed');
   r = await get('/admin/businesses?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E', 'tok-sales');
   check(!/<script>alert\(1\)<\/script>/.test(r.body) && /&lt;script&gt;/.test(r.body), 'search text is escaped when shown');
-  listRows = [];
+  state.listRows = [];
   r = await get('/admin/businesses?q=zzz', 'tok-sales');
   check(/No businesses match these filters/.test(r.body) && /0 businesses match/.test(text(r.body)), 'empty result has a clear message');
   check(/href="\/admin\/businesses"[^>]*>Clear/.test(r.body), 'filtered view offers Clear');
 
+  // ---- business detail ----
+  state.detail = freshDetail();
+  r = await get(`/admin/businesses/${BIZ}`);
+  check(r.status === 307 && /\/admin\/login/.test(r.loc ?? ''), 'signed out: detail redirects to login');
+  r = await get(`/admin/businesses/${BIZ}`, 'tok-editor');
+  check(r.status === 307 && r.loc === '/admin', 'editor has no access to business detail');
+  r = await get('/admin/businesses/not-a-uuid', 'tok-sales');
+  check(r.status === 404, 'a malformed id is a 404 (and never reaches the database)');
+  check(!state.rpc.some((c) => c.name === 'admin_business_detail' && c.body.p_business === 'not-a-uuid'), 'the malformed id was not sent to the RPC');
+  state.detail = null;
+  r = await get(`/admin/businesses/${BIZ}`, 'tok-sales');
+  check(r.status === 404, 'a business that is not in this tenant (RPC returns null) is a 404');
+  state.detail = freshDetail();
+  r = await get(`/admin/businesses/${BIZ}`, 'tok-sales');
+  const dt = text(r.body);
+  check(r.status === 200 && /Alpha Plumbing/.test(dt) && /Plumbing · Thayne · Unclaimed/.test(dt), 'sales: detail renders the business header');
+  check(/Phone\s+\(307\) 555-0101\s+Owner edited · Mar 2, 2026/.test(dt) && /Name\s+Alpha Plumbing\s+Imported/.test(dt) && /Short description\s+Pipes\s+Staff edited/.test(dt), 'provenance words sit beside each value (owner / imported / staff), dated in the tenant timezone');
+  check(/Gold verified · since Mar 1, 2026/.test(dt) && /Re-verify by Mar 1, 2027/.test(dt) && /Sms code · Mar 1, 2026/.test(dt) && /Postcard/.test(dt), 'verification: level, dates and proofs');
+  check(/Enhanced · Active · Paid/.test(dt) && /Category · Plumbing/.test(dt) && /Active · Paid · Apr 1, 2026 to Oct 30, 2026/.test(dt), 'listing and placements');
+  check(/No social links: social opportunity/.test(dt) && /Has a website/.test(dt) && /No Google profile linked/.test(dt), 'marketing opportunity indicators');
+  check(/Pat Owner/.test(dt) && /Website · Proposal · \$2,500/.test(dt) && /Interested in: Website, Seo aeo/.test(dt) && /Next: Bring postcard \(Oct 12, 2026\)/.test(dt), 'contacts, opportunities, services interest and next action');
+  check(/Visit · Pitched · Dropped by/.test(dt) && /· you/.test(dt), 'activity log shows kind, outcome, subject and who');
+  check(!/<b>idea<\/b>/.test(r.body) && /&lt;b&gt;idea&lt;\/b&gt;/.test(r.body), 'note text is escaped (no HTML injection from the log)');
+  check(/href="tel:\+13075550101"/.test(r.body) && /href="\/business\/alpha-plumbing"/.test(r.body), 'call button and public-page link (published business)');
+  check(/<label[^>]*for="stage"/.test(r.body) && /<label[^>]*for="kind"/.test(r.body) && /<label[^>]*for="body"/.test(r.body) && /<label[^>]*for="follow_up"/.test(r.body), 'every form field has a label');
+  check(!/SECRET|evidence/i.test(r.body), 'no proof evidence in the page');
+  state.detail.business.status = 'prospect';
+  r = await get(`/admin/businesses/${BIZ}`, 'tok-sales');
+  check(!/View public page/.test(r.body), 'a prospect has no public-page link');
+
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
-  if (process.argv.includes('--layout')) {   // real-browser layout of the admin pages, signed in against the mock
-    listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
+  if (process.argv.includes('--layout')) {
+    state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200);   // real-browser layout of the admin pages, signed in against the mock
+    state.listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
     try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-sales') }, timeout: 240000 })).stdout); }
     catch (e) { console.log(e.stdout ?? ''); failed++; }
   }
