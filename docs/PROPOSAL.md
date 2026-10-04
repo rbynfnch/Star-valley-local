@@ -77,6 +77,7 @@ Notes:
 | `…1900_admin_business_list` | `admin_list_businesses(...)`: staff list with filters (status, community, category, tier, lead stage, verified), name/phone search with literal `%`/`_`, stable paging. Sales and admin only (editors are refused: CRM data). Missing CRM row = stage `new`; tier is `enhanced` only while a listing is live |
 | `…2000_admin_business_detail` | `admin_business_detail()` (one document: fields + per-field provenance, CRM, listing, placements, proofs without their evidence, contacts, opportunities, communications, marketing indicators), `set_lead_stage()` (upsert + audit note) and `add_communication()` (staff id is always the caller). Sales and admin only |
 | `…2100_admin_edit_status` | `update_business_fields()` (whitelisted keys, only present keys change, `''` clears, validated; staff writes are recorded as `admin` provenance so imports never overwrite them) and `set_business_status()` (publish prospect → unclaimed/claimed, archive, restore; archive refused while a paid listing or placement is live; every change logged) |
+| `…2200_claim_flow` | `claim_start()` / `claim_verify()` (service role only): texts or emails a one-time secret, stores only its hash, enforces the limits, and on success links the owner and records the proof (Green is derived by the existing triggers). `app.expire_claims()` for the daily job |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -374,3 +375,13 @@ columns and the Premium tier.
 - `/admin/businesses/[id]/edit`: the profile form, with a "Visibility" card on the detail page (Publish / Archive / Restore). Forms submit via `onSubmit` so a failed save never wipes what was typed.
 - Publishing is the only way a prospect (CSV import, suggested business) reaches the public site. Archive is blocked while the business has a paid listing or placement: end those first (the placements manager will own that).
 - Still not editable: hours (structured), photos, services, links, FAQs, secondary categories and service areas. Those need their own editors.
+
+## Claim and verify (slice 4, part 1)
+- **Flow:** `/list-your-business?claim=<slug>` (the profile page's "Claim this business" link) → sign in or create an account (`/account/sign-in`, `/account/sign-up`) → "Text me a code" → 6-digit code → owner linked, `sms_code` proof recorded, business becomes `claimed` and **Green**. The destination is always the phone number on the listing, never typed by the visitor.
+- **Rules (all in the database, see `…2200_claim_flow`):** only an unclaimed, published business; a code lasts 10 minutes and allows 5 wrong attempts (the 5th rejects the claim); at most 3 codes per business per hour, 5 per user per day, 300 per tenant per day (SMS-pumping guard) and one per 60 seconds; the secret is stored only as a salted SHA-256; two people verifying at once cannot both win (business row lock; a 15-round two-session test proves it, and removing the lock makes 14 of 15 rounds deadlock).
+- **Who calls what:** the functions are executable by `service_role` only. The server authenticates the user (`getUser()`), then calls them with the service key (`src/lib/supabase/service.ts`) and texts the secret through Twilio's plain Messages API (`src/lib/sms/twilio.ts`, no SDK). No browser role can read a code.
+- **Decision recorded:** we generate and check the codes ourselves instead of using Twilio Verify: cheaper per message, the rules are SQL-testable, and `claims` was already built for hashed secrets.
+- **Email link** is implemented in the database (same mechanism, 256-bit token) but has no UI: it needs the email delivery worker.
+- **Before this works in production:** a Twilio account with a sender registered for **US A2P 10DLC** (carriers block unregistered business texting), `TWILIO_FROM_NUMBER`, Turnstile keys, and `SUPABASE_SERVICE_ROLE_KEY` as a server-only secret. Schedule `app.expire_claims()` with the other daily jobs.
+- **Not verified against real services:** Twilio and Supabase Auth were exercised only through mocks; Turnstile's server check is unit-tested but not exercised by the browser test (it needs a real secret).
+- **Not built:** admin claim tools (send a claim text on someone's behalf, postcard code batches for Gold), the email-link UI, owner dashboard, transferring or disputing a claim.

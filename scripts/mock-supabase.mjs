@@ -1,6 +1,7 @@
 // A tiny MOCK of the Supabase calls the admin makes (auth user + a few RPCs/tables). For local smoke/e2e scripts only.
 // It proves our wiring, NOT real Supabase behaviour. State is exported so scripts can set up data and inspect calls.
 import http from 'node:http';
+import crypto from 'node:crypto';
 
 export const MOCK_PORT = 54399;
 export const BIZ = '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b';
@@ -8,13 +9,24 @@ export const USERS = {
   'tok-sales': { id: 'u-sales', email: 'sales@example.test', role: 'sales' },
   'tok-editor': { id: 'u-editor', email: 'editor@example.test', role: 'editor' },
   'tok-rando': { id: 'u-rando', email: 'rando@example.test', role: null },
+  'tok-owner': { id: 'u-owner', email: 'owner@example.test', role: null },
 };
+export const PASSWORDS = { 'owner@example.test': 'correct-horse-battery' };
+export const SERVICE_KEY = 'service-secret';
 export const state = {
   rpc: [],            // [{ name, body }] every RPC call received
   lastList: null,
   listRows: [],
   failNext: null,     // an rpc name (next call returns 500) or { rpc, status, body } for a specific error response
   detail: null,       // set by scripts; null = business not found
+  sms: [],            // Twilio messages received: { auth, from, to, body }
+  claims: {},         // claim id -> { user, secret, attempts, status }
+  claimCancels: [],   // claim ids set to 'cancelled' through the REST API
+  nextSecret: '482913',
+  claimStartError: null,   // { status, body } to make claim_start fail
+  smsFail: false,
+  signups: [],
+  autoConfirm: false,
 };
 export const freshDetail = () => ({
   business: { id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing', status: 'unclaimed', community: 'Thayne', category: 'Plumbing', home_community_id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', primary_category_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', address_line1: '1 Main St', address_line2: null, city: 'Thayne', state: 'WY', postal_code: '83127',
@@ -42,6 +54,35 @@ export function startMock() {
       let args = {}; try { args = JSON.parse(body || '{}'); } catch { /* not json */ }
       if (rpc) { state.rpc.push({ name: rpc, body: args }); const f = state.failNext;
         if (f && (f === rpc || f.rpc === rpc)) { state.failNext = null; return typeof f === 'string' ? json(500, { message: 'boom' }) : json(f.status ?? 400, f.body ?? { message: 'boom' }); } }
+      if (req.url.startsWith('/auth/v1/token')) {
+        const a = JSON.parse(body || '{}'); const ok = PASSWORDS[a.email] && PASSWORDS[a.email] === a.password;
+        if (!ok) return json(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' });
+        const tok = a.email === 'owner@example.test' ? 'tok-owner' : 'tok-sales';
+        return json(200, { access_token: tok, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user: { id: USERS[tok].id, email: a.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' } });
+      }
+      if (req.url.startsWith('/auth/v1/signup')) {
+        const a = JSON.parse(body || '{}'); state.signups.push(a);
+        const user = { id: 'u-new', email: a.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' };
+        return json(200, state.autoConfirm ? { access_token: 'tok-owner', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r', user } : user);
+      }
+      if (req.method === 'POST' && /^\/2010-04-01\/Accounts\/[^/]+\/Messages\.json/.test(req.url)) {
+        const f = new URLSearchParams(body); state.sms.push({ auth: req.headers.authorization, from: f.get('From'), to: f.get('To'), body: f.get('Body') });
+        return state.smsFail ? json(400, { message: 'Invalid To number +13075550111 token secret' }) : json(201, { sid: 'SM1' });
+      }
+      if (req.method === 'PATCH' && req.url.startsWith('/rest/v1/claims')) { const id = /id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1]; if (id) state.claimCancels.push(id); return json(204, null); }
+      if (rpc === 'claim_start') {
+        state.rpc.at(-1).key = tok;
+        if (state.claimStartError) return json(state.claimStartError.status, state.claimStartError.body);
+        const id = crypto.randomUUID(); state.claims[id] = { user: args.p_user, secret: state.nextSecret, attempts: 0, status: 'pending' };
+        return json(200, { claim_id: id, secret: state.nextSecret, destination: '+1' + (state.destinationDigits ?? '3075550111'), method: 'sms_code', expires_at: new Date(Date.now() + 600000).toISOString() });
+      }
+      if (rpc === 'claim_verify') {
+        state.rpc.at(-1).key = tok;
+        const c = state.claims[args.p_claim];
+        if (!c || c.user !== args.p_user) return json(404, { code: 'P0002', message: 'claim not found' });
+        if (args.p_secret === c.secret) { c.status = 'verified'; return json(200, { result: 'verified', level: 'green' }); }
+        c.attempts++; return json(200, c.attempts >= 5 ? { result: 'rejected' } : { result: 'wrong', attempts_left: 5 - c.attempts });
+      }
       if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }) : json(401, { msg: 'invalid' });
       if (rpc === 'my_staff_role') return json(200, u?.role ?? null);
       if (rpc === 'admin_dashboard_counts') return !u?.role ? json(403, { code: '42501', message: 'staff only' }) : json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11 });

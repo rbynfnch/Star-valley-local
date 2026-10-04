@@ -22,15 +22,21 @@ export const canWritePlacements = (role: StaffRole | null | undefined) => role =
 export const visibleAreas = (role: StaffRole | null | undefined): AdminArea[] =>
   (Object.keys(ALLOWED) as AdminArea[]).filter((a) => canAccess(role, a));
 
-/** Where to send someone after signing in. Only same-site relative paths under /admin; never an external URL. */
-export function safeNextPath(next: string | null | undefined, fallback = '/admin'): string {
-  if (!next || typeof next !== 'string') return fallback;
+/**
+ * Where to send someone after signing in. Only same-site relative paths under one of `prefixes`; never an external URL.
+ * A prefix matches the path itself, "/prefix/...", or "/prefix?..." (so "/administrator" never matches "/admin").
+ */
+export function safeRelativePath(next: string | null | undefined, fallback: string, prefixes: readonly string[]): string {
+  if (!next || typeof next !== "string") return fallback;
   if (next.length > 300 || /[\u0000-\u001f\u007f\\]/.test(next)) return fallback;
-  if (!next.startsWith('/') || next.startsWith('//')) return fallback;
+  if (!next.startsWith("/") || next.startsWith("//")) return fallback;
   let decoded = next;
   try { decoded = decodeURIComponent(next); } catch { return fallback; }
-  if (decoded.startsWith('//') || /[\u0000-\u001f\\]/.test(decoded)) return fallback;
-  if (decoded.split('?')[0].split('/').some((seg) => seg === '..' || seg === '.')) return fallback;
-  if (next !== '/admin' && !next.startsWith('/admin/') && !next.startsWith('/admin?')) return fallback;
-  return next;
+  if (decoded.startsWith("//") || /[\u0000-\u001f\\]/.test(decoded)) return fallback;
+  if (decoded.split("?")[0].split("/").some((seg) => seg === ".." || seg === ".")) return fallback;
+  const ok = prefixes.some((p) => next === p || next.startsWith(p + "/") || next.startsWith(p + "?"));
+  return ok ? next : fallback;
 }
+
+/** After admin sign-in: only /admin paths. */
+export const safeNextPath = (next: string | null | undefined, fallback = "/admin"): string => safeRelativePath(next, fallback, ["/admin"]);

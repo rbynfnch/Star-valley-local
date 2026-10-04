@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canAccess, canWritePlacements, safeNextPath, visibleAreas, type AdminArea, type StaffRole } from './access.ts';
+import { canAccess, canWritePlacements, safeNextPath, safeRelativePath, visibleAreas, type AdminArea, type StaffRole } from './access.ts';
 
 const AREAS: AdminArea[] = ['dashboard', 'businesses', 'import', 'crm', 'placements', 'moderation', 'content', 'settings'];
 
@@ -25,5 +25,13 @@ test('safeNextPath: only same-site /admin paths survive', () => {
   assert.equal(safeNextPath('/admin'), '/admin');
   for (const bad of ['https://evil.example', '//evil.example', '/\\evil.example', '/admin/../x@evil', '%2F%2Fevil.example', 'javascript:alert(1)', '/businesses', '/administrator', '/%2F%2Fevil.example', '/admin\n/x', '', null, undefined, '/' + 'a'.repeat(400)]) {
     assert.equal(safeNextPath(bad as string), '/admin', String(bad));
+  }
+});
+test('safeRelativePath: allowed prefixes only, with the same traversal and scheme rules', () => {
+  const P = ['/list-your-business', '/account'];
+  assert.equal(safeRelativePath('/list-your-business?claim=a-b', '/', P), '/list-your-business?claim=a-b');
+  assert.equal(safeRelativePath('/account/sign-in', '/', P), '/account/sign-in');
+  for (const bad of ['/admin', '/list-your-businessx', '//evil.example', 'https://evil.example', '/list-your-business/../admin', '/%2F%2Fevil', '/list-your-business\\x', '']) {
+    assert.equal(safeRelativePath(bad, '/', P), '/', bad);
   }
 });

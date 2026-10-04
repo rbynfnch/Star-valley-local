@@ -3,6 +3,7 @@
 
 create extension if not exists btree_gist with schema extensions;
 create extension if not exists pg_trgm   with schema extensions;
+create extension if not exists pgcrypto   with schema extensions;   -- digest(), gen_random_bytes(): claim codes
 
 create schema if not exists app;
 grant usage on schema app to anon, authenticated, service_role;
