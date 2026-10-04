@@ -1,6 +1,6 @@
 # Star Valley Local — Proposal for review: repo structure, schema, RLS
 
-Status: **proposal, no UI written.** The schema and RLS are real migrations that apply cleanly on
+Status: **proposal, no UI written. Round 1 decisions applied (see §7).** The schema and RLS are real migrations that apply cleanly on
 Postgres 16 and pass the test suites described in §5. Nothing here has been run against a real
 Supabase project yet (see "What is not verified").
 
@@ -77,9 +77,13 @@ Notes:
   `listings` rows exist only for paid/comped Enhanced; **Free = absence of an active Enhanced listing**.
   One active listing per business at a time (exclusion constraint).
 - **Featured is a placement.** No `is_featured` column anywhere (a test asserts this). Rules enforced in a
-  trigger when a placement is `active`: business is public and verified (Green or Gold), has an active
-  Enhanced listing, and concurrent active placements never exceed the tenant limit **at any instant of
-  the window**. An advisory lock serializes concurrent activations. Limits live in `placement_limits`
+  trigger when a placement is `active`: business is public and verified (Green or Gold); **paid**
+  placements also need an active Enhanced listing (comped sources `founding_member | campaign | manual`
+  are exempt); and concurrent active placements never exceed the tenant limit **at any instant of
+  the window**. When an Enhanced listing is cancelled, expires, or has its end shortened, the business's
+  **paid** placements end at that moment (running ones are clamped, future ones cancelled) and the slot
+  frees immediately; renewals that extend the listing do nothing, and a successor listing that covers the
+  lapse prevents the clamp. An advisory lock serializes concurrent activations. Limits live in `placement_limits`
   (seeded 6/3/4/6 per tenant, editable). Waitlist = rows with `status='waitlist'` ordered by `created_at`.
   Expiry is automatic because "live" means `now()` inside `[start_at, end_at)`.
 - **Verification is derived, never set.** Level comes from owners + proofs via `recompute_verification()`:
@@ -160,7 +164,7 @@ cannot read or write another's rows; anon cannot forge analytics.
 ## 5. Tests
 
 `supabase/tests/run.sh` creates a fresh database, loads a tiny Supabase stub (`auth.uid()`, roles),
-applies every migration, then runs the suites. **All pass on Postgres 16.14.**
+applies every migration, then runs the suites. **168 assertions, all pass on Postgres 16.14.**
 
 | Suite | Covers |
 |---|---|
@@ -170,6 +174,7 @@ applies every migration, then runs the suites. **All pass on Postgres 16.14.**
 | `concurrency.sh` | two sessions race for the last slot: exactly one wins. **Mutation-checked:** with the lock removed, both win (limit breached) and the test fails |
 | `t_04_provenance` | import never overwrites owner/admin fields, import flag in staff session, dedupe helper |
 | `t_05_enhanced_content_leads` | Enhanced gating, quote-request rule, article/deal visibility, append-only tracking, hours, rules like "no `is_featured`/ratings/distance/Premium" |
+| `t_07_comped_and_lapse` | comped placements exempt from Enhanced (still need verified), paid still needs Enhanced, lapse/shorten/cancel ends paid placements and frees the slot, renewal and successor listing leave them alone. Mutation-checked: removing the trigger fails the suite |
 | `t_06_rls_audit` | every table has RLS + a policy, anon grants are minimal, tenant-immutability trigger everywhere |
 
 Bugs the tests caught while writing this: (1) my verification guard used trigger depth and would have
@@ -192,31 +197,39 @@ columns and the Premium tier.
 
 ---
 
-## 7. Questions for you (these change the schema)
+## 7. Decisions and open questions
 
-1. **Do imported skeleton records go public automatically?** I made them `prospect` (hidden) until staff
-   bulk-publish. Safer, but means imports don't show until reviewed.
-2. **Are comped Featured placements (founding member) exempt from "needs Enhanced"?** Currently not:
-   a comped Featured business also needs a comped Enhanced listing.
-3. **Placement ends if the Enhanced listing ends?** Not implemented. Today a lapsed listing leaves an
-   active placement running. Options: clamp `end_at` to the listing end, or cancel automatically.
-4. **Public visibility of commercial fields.** Anonymous readers can see `listings.source` and
-   `placements.source` (e.g. `founding_member`). Also `created_by` UUIDs. Do you want these hidden behind
-   a view?
-5. **Anonymous insert paths** (`leads`, `submissions`) go through RLS, which is correct, but they need
-   captcha or rate limiting in the route handler. Is Cloudflare Turnstile acceptable, or do you want
-   something else? (Would be a new third-party dependency, so asking first.)
-6. **Import protection for child tables** (hours, services, links, FAQs, photos): the schema has
-   provenance columns, but "replace all hours" from a re-import must skip businesses whose rows were
-   edited by owner/admin. I plan to implement that in the CSV import tool rather than by trigger. OK?
-7. **Newsletter subscribe** goes through a server route (double opt-in) instead of an anonymous insert,
-   to avoid leaking which emails are subscribed. OK?
-8. **Seed data**: ~30 sample businesses across the 12 communities and the 7 top-level categories from the
-   mockup. Should sample businesses be obviously fictional (e.g. "Sample Plumbing Co") or realistic names?
-   I'd default to clearly fictional so nothing impersonates a real local business.
+### Decided (round 1)
+1. **Imports are hidden until staff publish.** Imported records and Suggest-a-Business submissions are
+   `prospect` rows, invisible to the public until staff move them to `unclaimed`. *(Already how the schema
+   worked; unchanged.)*
+2. **Comped placements are exempt from "needs Enhanced".** Implemented as: any placement whose `source` is
+   not `paid` (`founding_member`, `campaign`, `manual`). They still require a verified, public business.
+   If you meant only `founding_member`, it is a one-line change.
+3. **A lapsing Enhanced listing ends its paid Featured placements.** Implemented as described in §2.
+   Comped placements are independent of listings.
+
+### Still open (these change the schema or behavior)
+4. **Verification lapse vs. Featured.** The mirror of decision 3: if a Featured business's verification
+   expires (1 year) or its owner is removed, it drops to unverified but its placement keeps running.
+   Same treatment (end the placement)? Or a grace period? Not implemented.
+5. **Public visibility of commercial fields.** Anonymous readers can see `listings.source` and
+   `placements.source` (e.g. `founding_member`, which reveals who was comped). Also `created_by` UUIDs.
+   Hide behind a view?
+6. **Anonymous insert paths** (`leads`, `submissions`) are policy-gated, but need captcha or rate limiting
+   in the route handler. Is Cloudflare Turnstile acceptable, or something else? (New third-party
+   dependency, so asking first.)
+7. **Import protection for child tables** (hours, services, links, FAQs, photos): the schema has provenance
+   columns, but "replace all hours" from a re-import must skip businesses whose rows were edited by
+   owner/admin. I plan to implement that in the CSV import tool rather than by trigger. OK?
+8. **Newsletter subscribe** goes through a server route (double opt-in) instead of an anonymous insert, to
+   avoid leaking which emails are subscribed. OK?
+9. **Seed data**: ~30 sample businesses across the communities and the 7 top-level categories from the
+   mockup. Default: clearly fictional names ("Sample Plumbing Co") so nothing impersonates a real local
+   business. OK?
 
 ## 8. Next steps once you approve
 
-1. Apply answers above; run suites against real Supabase (`supabase db reset`).
+1. Apply answers to the open questions; run suites against real Supabase (`supabase db reset`).
 2. Seed data + `.env.example` + tenant config for Star Valley (slice 1 complete).
 3. Scaffold Next.js, extract design tokens from the mockups, build slice 2 (public directory).

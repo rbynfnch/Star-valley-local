@@ -95,7 +95,8 @@ end $$;
 
 -- Rules enforced when a placement occupies inventory (status = 'active'):
 --  1. business is public and verified (green or gold);
---  2. business has an Enhanced listing active at start_at;
+--  2. PAID placements require an Enhanced listing active at start_at (comped sources -- founding_member,
+--     campaign, manual -- are exempt; see app.listings_end_placements for what happens when it lapses);
 --  3. concurrent active placements in the same slot/scope never exceed the tenant limit at any instant
 --     of the window (advisory lock serializes concurrent activations of the same slot).
 create function app.placements_enforce() returns trigger language plpgsql security definer set search_path = '' as $$
@@ -105,12 +106,20 @@ declare
 begin
   if new.status <> 'active' then return new; end if;
 
+  -- shrinking an already-active placement (e.g. clamped when a listing lapses) can never violate a rule
+  if tg_op = 'UPDATE' and old.status = 'active'
+     and new.slot_type = old.slot_type and new.business_id = old.business_id
+     and new.category_id is not distinct from old.category_id and new.community_id is not distinct from old.community_id
+     and new.start_at = old.start_at and new.end_at <= old.end_at then
+    return new;
+  end if;
+
   select * into b from public.businesses where id = new.business_id;
   if b.status not in ('unclaimed', 'claimed') or b.verification_level = 'none' then
     raise exception 'Featured requires a verified, published business' using errcode = 'check_violation';
   end if;
-  if not app.business_is_enhanced(new.business_id, new.start_at) then
-    raise exception 'Featured requires an active Enhanced listing' using errcode = 'check_violation';
+  if new.source = 'paid' and not app.business_is_enhanced(new.business_id, new.start_at) then
+    raise exception 'paid Featured requires an active Enhanced listing' using errcode = 'check_violation';
   end if;
 
   v_lock := hashtextextended(concat_ws('|', new.tenant_id, new.slot_type, new.category_id, new.community_id), 0);
@@ -153,3 +162,39 @@ language sql stable security definer set search_path = '' as $$
       and p.scope_id is not distinct from p_scope and p.start_at <= p_at and p.end_at > p_at) u
   where l.tenant_id = p_tenant and l.slot_type = p_slot
 $$;
+
+-- When an Enhanced listing lapses, the PAID Featured placements built on it end with it.
+--   * listing leaves 'active' (cancelled/expired)         -> cutoff = the earlier of now() and its end
+--   * active listing's ends_at moves earlier (or is set)   -> cutoff = new ends_at
+--   * renewals that extend ends_at do nothing.
+-- Placements already running are clamped to the cutoff (slot frees immediately); future ones are cancelled.
+-- Comped placements are independent of listings. Skipped if another active Enhanced listing still covers the cutoff.
+create function app.listings_end_placements() returns trigger language plpgsql security definer set search_path = '' as $$
+declare cutoff timestamptz;
+begin
+  if tg_op = 'DELETE' then
+    cutoff := now();
+  elsif old.status = 'active' and new.status <> 'active' then
+    cutoff := least(now(), coalesce(new.ends_at, now()));
+  elsif new.status = 'active' and new.ends_at is not null and (old.ends_at is null or new.ends_at < old.ends_at) then
+    cutoff := new.ends_at;
+  else
+    return null;
+  end if;
+
+  if exists (select 1 from public.listings l
+             where l.business_id = coalesce(new.business_id, old.business_id) and l.id <> coalesce(new.id, old.id)
+               and l.tier = 'enhanced' and l.status = 'active'
+               and l.starts_at <= cutoff and (l.ends_at is null or l.ends_at > cutoff)) then
+    return null;
+  end if;
+
+  update public.placements
+     set end_at = case when start_at < cutoff then cutoff else end_at end,
+         status = case when start_at < cutoff then status else 'cancelled' end
+   where business_id = coalesce(new.business_id, old.business_id)
+     and source = 'paid' and status = 'active' and end_at > cutoff;
+  return null;
+end $$;
+create trigger listings_end_placements after update or delete on public.listings
+  for each row execute function app.listings_end_placements();
