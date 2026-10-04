@@ -34,6 +34,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run e2e:claim` | the public claim flow (sign in, text a code, verify, failure paths) in a real browser against a Supabase + Twilio **mock**. Start the app with the env vars listed at the top of `scripts/e2e-claim.mjs` |
 | `npm run e2e:submissions` | the three public forms (Suggest an Update / Suggest a Business / Submit an Event) in a real browser against the Supabase **mock** |
 | `npm run e2e:moderation` | the admin moderation queue in a real browser against the same mock (roles, approve/apply/duplicate/reject/spam, errors) |
+| `npm run e2e:import` | the admin CSV import wizard (upload, column mapping, check, decisions, commit) in a real browser against the Supabase **mock** |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 
 ### Running without a Supabase project (development only)

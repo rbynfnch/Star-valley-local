@@ -1,5 +1,6 @@
 // Minimal RFC 4180 CSV parser (quotes, escaped quotes, CRLF/LF, embedded newlines, BOM). No dependency.
-export function parseCsv(input: string): string[][] {
+// keepBlank: keep fully blank rows so row numbers match the spreadsheet the file came from (the importer skips them).
+export function parseCsv(input: string, opts: { keepBlank?: boolean } = {}): string[][] {
   const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
   const rows: string[][] = [];
   let row: string[] = [];
@@ -19,10 +20,11 @@ export function parseCsv(input: string): string[][] {
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && text[i + 1] === '\n') i++;
       if (sawAny || field !== '') { row.push(field); rows.push(row); }
+      else if (opts.keepBlank) rows.push(['']);          // an empty line still counts as a row
       row = []; field = ''; sawAny = false;
     } else { field += c; sawAny = true; }
   }
   if (inQuotes) throw new Error('CSV has an unterminated quoted field');
   if (sawAny || field !== '') { row.push(field); rows.push(row); }
-  return rows.filter((r) => r.some((f) => f.trim() !== ''));
+  return opts.keepBlank ? rows : rows.filter((r) => r.some((f) => f.trim() !== ''));
 }

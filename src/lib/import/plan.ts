@@ -97,13 +97,14 @@ const similar = (a: string, b: string) => {
  * Bad optional values (website, phone, email) are dropped with a reason rather than failing the row.
  */
 export function planImport(csv: string, mapping: Mapping, lk: Lookups, opts: { hasHeader?: boolean } = {}): RowPlan[] {
-  const rows = parseCsv(csv);
+  const rows = parseCsv(csv, { keepBlank: true });   // row numbers must match the spreadsheet; blank rows are skipped below
   const start = opts.hasHeader === false ? 0 : 1;
   const plans: RowPlan[] = [];
   const seen: { key: string; phone: string | null; addr: string; line: number }[] = [];
   const usedSlugs = new Set<string>();
   for (let i = start; i < rows.length; i++) {
     const cells = rows[i]; const line = i + 1; const reasons: string[] = [];
+    if (cells.every((c) => c.trim() === '')) continue;                       // blank row: nothing to import, not an error
     const name = pick(cells, mapping, 'name').replace(/\s+/g, ' ');
     if (!name) { plans.push({ line, action: 'invalid', reasons: ['no business name'] }); continue; }
     const rawPhone = pick(cells, mapping, 'phone'); const phone = rawPhone ? formatPhone(rawPhone) : null;

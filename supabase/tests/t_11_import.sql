@@ -46,3 +46,16 @@ select test.as_anon();
 select test.throws($$select test.imp('[{"name":"Anon Import"}]')$$, 'I17: anon cannot call import_businesses', '42501');
 select test.as_root();
 select test.throws($$select test.imp('{"name":"not an array"}')$$, 'I18: payload must be an array', '22023');
+
+-- the exact row shape the admin import screen sends (every key present, nulls for the empty ones)
+select test.as_user(test.id('salesA'));
+create temp table imp4 as select test.imp(jsonb_build_array(jsonb_build_object(
+  'name', 'Contract Row Co', 'slug', 'contract-row-co-thayne', 'address_line1', null, 'city', null, 'postal_code', null, 'phone', '(307) 555-0577',
+  'website', 'https://contract.example', 'email', null, 'short_description', null, 'primary_category_id', test.id('catPlumb'), 'home_community_id', test.id('thayne')))) as r;
+select test.as_root();
+select test.ok((select r->0->>'result' from imp4) = 'created' and (select status from public.businesses where slug = 'contract-row-co-thayne' and tenant_id = test.id('tenantA')) = 'prospect', 'I19: the app''s exact row shape (all keys, nulls for empty fields) is accepted and creates a hidden prospect');
+select test.ok((select home_community_id from public.businesses where slug = 'contract-row-co-thayne' and tenant_id = test.id('tenantA')) = test.id('thayne') and (select primary_category_id from public.businesses where slug = 'contract-row-co-thayne' and tenant_id = test.id('tenantA')) = test.id('catPlumb'), 'I20: resolved community and category ids are stored');
+select test.as_user(test.id('salesA'));
+create temp table imp5 as select test.imp(jsonb_build_array(jsonb_build_object('name', 'Contract Review Co', 'slug', 'contract-review-co', 'phone', null, 'address_line1', null, 'primary_category_id', null, 'home_community_id', null, 'force', true))) as r;
+select test.as_root();
+select test.ok((select r->0->>'result' from imp5) = 'created', 'I21: a forced "review" row with no category or community is still a valid hidden prospect');

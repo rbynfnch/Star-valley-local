@@ -67,3 +67,12 @@ test('dangerous cell content is carried as data only', () => {
   assert.equal(p.candidate!.website, null);
   assert.ok(!/[<>]/.test(p.candidate!.slug));
 });
+test("row numbers match the spreadsheet even with blank lines (and keepBlank only changes that)", async () => {
+  const { parseCsv } = await import("./csv.ts");
+  assert.deepEqual(parseCsv("a\n\nb\n"), [["a"], ["b"]]);
+  assert.deepEqual(parseCsv("a\n\nb\n", { keepBlank: true }), [["a"], [""], ["b"]]);
+  assert.deepEqual(parseCsv("a\r\n\r\nb\r\n", { keepBlank: true }), [["a"], [""], ["b"]]);
+  const lk2: Lookups = { categories: [], communities: [], existing: [] };
+  const plans = planImport("Name\nOne\n\n\nTwo\n", { name: 0 }, lk2);
+  assert.deepEqual(plans.map((p) => [p.line, p.candidate?.name]), [[2, "One"], [5, "Two"]]);
+});

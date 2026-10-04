@@ -28,6 +28,8 @@ export const state = {
   signups: [],
   submissions: [],    // submission_create arguments
   modRows: [],        // moderation queue rows (see freshModRows)
+  existingBusinesses: [],   // rows returned for the planner's duplicate lookup
+  imported: [],             // import_businesses row arrays received
   duplicateFor: [],   // submission ids whose business approval reports a duplicate until forced
   autoConfirm: false,
 };
@@ -137,8 +139,14 @@ export function startMock() {
         if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' });
         state.detail.business.status = args.p_status; return json(200, args.p_status);
       }
-      if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: BIZ, name: 'Thayne' }]);
-      if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Plumbing' }]);
+      if (req.method === 'GET' && req.url.startsWith('/rest/v1/businesses')) { const q = new URL(req.url, 'http://x').searchParams; const off = Number(q.get('offset') ?? 0), lim = Number(q.get('limit') ?? 1000); return json(200, state.existingBusinesses.slice(off, off + lim)); }
+      if (rpc === 'import_businesses') {
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        state.imported.push(args.p_rows);
+        return json(200, args.p_rows.map((r, i) => r.name === 'Explode' ? { index: i + 1, result: 'error', message: 'new row for relation "businesses" violates check constraint' } : r.existing_id ? { index: i + 1, result: 'updated', id: r.existing_id } : { index: i + 1, result: 'created', id: crypto.randomUUID(), slug: r.slug }));
+      }
+      if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: BIZ, slug: 'thayne', name: 'Thayne' }]);
+      if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', slug: 'plumbing', name: 'Plumbing', plural_name: 'Plumbers' }]);
       json(404, {});
     });
   });

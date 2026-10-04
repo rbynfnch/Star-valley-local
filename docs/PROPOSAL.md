@@ -397,3 +397,11 @@ columns and the Premium tier.
 - **Decision recorded:** the prospect for a suggested business is created at approval, not on submission, so spam never reaches the CRM.
 - **Not built:** claim requests as a moderation type (claims are automatic today), emailing the submitter a decision, merging a duplicate into the existing business, editing a submission before approving, structured hours from an update.
 - **Not verified against real services:** Supabase and Turnstile through mocks only.
+
+## CSV import screen (admin slice, part 6)
+- `/admin/import` (sales + admin): choose a CSV, match the columns (guessed from the headers; one column may feed several fields, e.g. Town = city + community), **check** the file, decide, then import. Imported businesses are always **hidden prospects**; nothing goes public until staff publish them (see Edit and publish).
+- **The browser never supplies rows.** The check and the commit both re-read the uploaded file and re-plan it on the server (`src/lib/import/plan.ts`), then send only the chosen lines to `import_businesses()`. A forged selection cannot add an invalid row, an in-file duplicate, or anything outside the file.
+- **Row numbers match the spreadsheet:** blank lines are kept in the numbering and skipped, so "row 7" is row 7 in Excel.
+- **Decisions on the check screen:** rows that need review (unrecognised category or community, or a similar name with no matching phone or address) are off by default and can be added with "Add this business anyway"; a business already in the directory can optionally be updated from the row (fills empty fields only; owner and staff edits are never overwritten, by the database).
+- **Limits:** 1 MB and 2,000 rows per import (the function's limit); duplicate detection reads every existing business in 1,000-row pages (an e2e test puts the match beyond the first page).
+- **Not built:** saving a column mapping for next time, a dry-run report download, importing categories or hours, import history.

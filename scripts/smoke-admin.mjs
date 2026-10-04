@@ -134,6 +134,15 @@ try {
   r = await get('/admin', 'tok-sales');
   check(/Waiting for review\s+4/.test(text(r.body)), 'the dashboard shows how many submissions are waiting');
 
+  // ---- import access ----
+  r = await get('/admin/import');
+  check(r.status === 307 && r.loc === '/admin/login?next=%2Fadmin%2Fimport', 'signed out: import redirects to login');
+  r = await get('/admin/import', 'tok-editor');
+  check(r.status === 307 && r.loc === '/admin', 'editor cannot open the import page');
+  r = await get('/admin/import', 'tok-sales');
+  check(r.status === 200 && /Import businesses/.test(text(r.body)) && /<label[^>]*for="csv-file"/.test(r.body), 'sales: the import page renders with a labelled file input');
+  check(/<a[^>]*href="\/admin\/import"[^>]*>Import<\/a>/.test(r.body), 'the admin nav links to Import');
+
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
   if (process.argv.includes('--layout')) {
