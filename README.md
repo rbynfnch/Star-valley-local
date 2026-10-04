@@ -6,7 +6,8 @@ A local business directory and community resource for Star Valley, Wyoming, buil
 ## Docs
 - `docs/PROPOSAL.md`: repo structure, schema, RLS matrix, decisions
 - `docs/NOTIFICATIONS.md`: grace period, reminder emails, outbox worker contract
-- `docs/DESIGN_TOKENS.md`: design tokens and accessibility notes
+- `docs/STYLE_GUIDE.md`: brand style guide v1.0 (palette, hierarchy, accessibility rules, typography, photography, components)
+- `docs/DESIGN_TOKENS.md`: design tokens and accessibility notes (currently the early-mockup palette; see the style guide's migration section)
 
 ## Develop
 ```bash
