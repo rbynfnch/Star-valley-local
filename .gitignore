@@ -8,3 +8,19 @@ out/
 supabase/.branches/
 supabase/.temp/
 *.log
+
+# next / ts / misc (from the scaffold)
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+/coverage
+/build
+*.pem
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*

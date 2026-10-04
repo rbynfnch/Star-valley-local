@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@import "../styles/tokens.generated.css";   /* generated from src/styles/tokens.ts: `npm run tokens` */
+
+@layer base {
+  html {
+    background: var(--surface-page);
+    color: var(--text-body);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    color: var(--text);
+  }
+  a { color: var(--link); }
+  /* WCAG 2.4.7: a visible focus indicator, 3:1 against the page (tested in tokens.test.ts). */
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

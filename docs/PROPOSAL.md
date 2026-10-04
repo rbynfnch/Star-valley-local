@@ -37,8 +37,8 @@ star-valley-local/
 │  │  ├─ seo/                   JSON-LD builders, sitemap helpers
 │  │  └─ domain/                tier, placements, verification helpers (thin wrappers over SQL)
 │  ├─ components/               ui/ (tokens-driven), directory/, admin/
-│  └─ styles/tokens.css         CSS variables extracted from the mockups, per-tenant overridable
-├─ tailwind.config.ts           reads the CSS variables
+│  └─ styles/tokens.ts          design tokens (source of truth) -> tokens.generated.css; see docs/DESIGN_TOKENS.md
+├─ (Tailwind v4 is CSS-first: no tailwind.config.ts; src/app/globals.css imports the generated tokens)
 ├─ .env.example                 every variable the app will need; server-only ones marked
 └─ package.json                 Next.js + Tailwind + Supabase + Stripe only (§3 of CLAUDE.md)
 ```
