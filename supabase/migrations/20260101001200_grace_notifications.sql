@@ -17,7 +17,8 @@ create type public.notification_kind as enum (
   'featured_grace_reminder',     -- grace period running out
   'featured_ended_unverified',   -- grace ran out; Featured placements ended
   'placement_renewal_reminder',  -- Featured placement ends soon
-  'listing_renewal_reminder');   -- fixed-term (non-subscription) Enhanced listing ends soon
+  'listing_renewal_reminder',    -- fixed-term (non-subscription) Enhanced listing ends soon
+  'staff_no_contact_alert');     -- a grace-period step happened but the business has nobody to email
 create type public.notification_status as enum ('queued', 'sending', 'sent', 'failed', 'cancelled');
 
 -- Per-tenant policy knobs.
@@ -91,7 +92,27 @@ create trigger placements_rearm before update on public.placements for each row 
 create trigger listings_rearm   before update on public.listings   for each row execute function app.rearm_listing_reminder();
 
 -- Recipients: the business's owners; if it has none (e.g. the owner was just removed), fall back to the
--- business email and the primary CRM contact so a lapse never goes silent. Returns rows queued.
+-- business email and the primary CRM contact so a lapse never goes silent.
+create function app.business_recipients(p_business uuid) returns table (email text, uid uuid)
+language plpgsql stable security definer set search_path = '' as $$
+declare b public.businesses;
+begin
+  select * into b from public.businesses where id = p_business;
+  return query
+    select distinct on (lower(x.e)) x.e, x.u from (
+      select u.email::text as e, o.user_id as u from public.business_owners o join auth.users u on u.id = o.user_id
+       where o.business_id = p_business and u.email is not null
+      union all
+      select b.email::text, null::uuid where b.email is not null
+         and not exists (select 1 from public.business_owners where business_id = p_business)
+      union all
+      select c.email::text, null::uuid from public.contacts c
+       where c.business_id = p_business and c.is_primary and c.email is not null
+         and not exists (select 1 from public.business_owners where business_id = p_business)
+    ) x order by lower(x.e);
+end $$;
+
+-- Queues one email per recipient. Returns rows actually queued (0 if none exist OR all were already queued).
 create function app.enqueue_business_notification(
   p_business uuid, p_kind public.notification_kind, p_payload jsonb, p_dedupe text, p_send_after timestamptz default now())
 returns int language plpgsql security definer set search_path = '' as $$
@@ -99,25 +120,46 @@ declare b public.businesses; r record; n int := 0; v int;
 begin
   select * into b from public.businesses where id = p_business;
   if not found then return 0; end if;
-  for r in
-    select distinct on (lower(x.email)) x.email, x.uid from (
-      select u.email, o.user_id as uid from public.business_owners o join auth.users u on u.id = o.user_id
-       where o.business_id = p_business and u.email is not null
-      union all
-      select b.email, null::uuid where b.email is not null
-         and not exists (select 1 from public.business_owners where business_id = p_business)
-      union all
-      select c.email, null::uuid from public.contacts c
-       where c.business_id = p_business and c.is_primary and c.email is not null
-         and not exists (select 1 from public.business_owners where business_id = p_business)
-    ) x order by lower(x.email)
-  loop
+  for r in select * from app.business_recipients(p_business) loop
     insert into public.notifications (tenant_id, kind, business_id, recipient_email, recipient_user_id, payload, dedupe_key, send_after, next_attempt_at)
     values (b.tenant_id, p_kind, p_business, r.email, r.uid, p_payload, p_dedupe || ':' || lower(r.email), p_send_after, p_send_after)
     on conflict (dedupe_key) do nothing;
     get diagnostics v = row_count; n := n + v;
   end loop;
   return n;
+end $$;
+
+-- Staff (admin + sales) of the business's tenant. Used when a grace-period step has nobody to email, so that
+-- a human can phone or visit. Each staff address is queued once per step.
+create function app.enqueue_staff_alert(p_business uuid, p_payload jsonb, p_dedupe text) returns int
+language plpgsql security definer set search_path = '' as $$
+declare b public.businesses; r record; n int := 0; v int;
+begin
+  select * into b from public.businesses where id = p_business;
+  if not found then return 0; end if;
+  for r in select distinct on (lower(u.email)) u.email::text as email, s.user_id as uid
+           from public.tenant_staff s join auth.users u on u.id = s.user_id
+           where s.tenant_id = b.tenant_id and s.role in ('admin', 'sales') and u.email is not null
+           order by lower(u.email) loop
+    insert into public.notifications (tenant_id, kind, business_id, recipient_email, recipient_user_id, payload, dedupe_key)
+    values (b.tenant_id, 'staff_no_contact_alert', p_business, r.email, r.uid,
+            p_payload || jsonb_build_object('business_id', p_business, 'business_name', b.name, 'business_slug', b.slug, 'reason', 'no_contact'),
+            p_dedupe || ':staff:' || lower(r.email))
+    on conflict (dedupe_key) do nothing;
+    get diagnostics v = row_count; n := n + v;
+  end loop;
+  return n;
+end $$;
+
+-- Email the business if anyone can be reached; otherwise alert staff with the same facts.
+create function app.notify_business_or_alert_staff(p_business uuid, p_kind public.notification_kind, p_payload jsonb, p_dedupe text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if exists (select 1 from app.business_recipients(p_business)) then
+    perform app.enqueue_business_notification(p_business, p_kind, p_payload, p_dedupe);
+  else
+    perform app.enqueue_staff_alert(p_business, p_payload || jsonb_build_object('original_kind', p_kind), p_dedupe);
+  end if;
 end $$;
 
 create function app.active_placements_json(p_business uuid) returns jsonb language sql stable security definer set search_path = '' as $$
@@ -139,7 +181,7 @@ begin
   on conflict (business_id) where resolved_at is null do nothing
   returning id into g;
   if g is null then return; end if;                    -- already in a grace period
-  perform app.enqueue_business_notification(p_business, 'verification_lapsed',
+  perform app.notify_business_or_alert_staff(p_business, 'verification_lapsed',
     jsonb_build_object('grace_id', g, 'business_name', b.name, 'business_slug', b.slug, 'ends_at', v_ends,
                        'grace_days', pol.verification_grace_days, 'placements', app.active_placements_json(p_business)),
     'grace:' || g || ':start');
@@ -159,10 +201,11 @@ end $$;
 
 -- Closes grace periods that ran out: ends the business's placements (paid AND comped: verification applies to all).
 create function app.end_expired_graces(p_now timestamptz default now()) returns int language plpgsql security definer set search_path = '' as $$
-declare g record; n int; total int := 0; b public.businesses;
+declare g record; n int; total int := 0; b public.businesses; credit int;
 begin
   for g in select * from public.verification_grace where resolved_at is null and ends_at <= p_now loop
     select * into b from public.businesses where id = g.business_id;
+    credit := app.credit_ended_placements(g.id, p_now);          -- BEFORE the placements are cut short
     update public.placements
        set end_at = case when start_at < p_now then p_now else end_at end,
            status = case when start_at < p_now then status else 'cancelled' end
@@ -172,8 +215,9 @@ begin
     update public.notifications set status = 'cancelled', last_error = 'grace period ended'
      where dedupe_key like 'grace:' || g.id || ':r%' and status in ('queued', 'failed');
     if n > 0 then
-      perform app.enqueue_business_notification(g.business_id, 'featured_ended_unverified',
-        jsonb_build_object('grace_id', g.id, 'business_name', b.name, 'business_slug', b.slug, 'placements_ended', n),
+      perform app.notify_business_or_alert_staff(g.business_id, 'featured_ended_unverified',
+        jsonb_build_object('grace_id', g.id, 'business_name', b.name, 'business_slug', b.slug, 'placements_ended', n,
+                           'credit_cents', credit),
         'grace:' || g.id || ':ended');
       total := total + 1;
     end if;
@@ -197,7 +241,7 @@ begin
            where g.resolved_at is null and g.ends_at > p_now loop
     select min(x) into d from unnest(r.grace_reminder_days) x where r.ends_at - make_interval(days => x) <= p_now;
     if d is not null then
-      perform app.enqueue_business_notification(r.business_id, 'featured_grace_reminder',
+      perform app.notify_business_or_alert_staff(r.business_id, 'featured_grace_reminder',
         jsonb_build_object('grace_id', r.id, 'ends_at', r.ends_at, 'days_left', d,
                            'business_name', (select name from public.businesses where id = r.business_id),
                            'placements', app.active_placements_json(r.business_id)),
@@ -220,10 +264,10 @@ begin
     end if;
   end loop;
 
-  -- 4. renewal reminders: fixed-term Featured placements, and non-subscription Enhanced listings
+  -- 4. renewal reminders: only for fixed-term terms (auto_renews = false); subscriptions renew via Stripe
   for r in select p.id, p.business_id, p.end_at from public.placements p
            join public.tenant_policies t on t.tenant_id = p.tenant_id
-           where p.status = 'active' and p.renewal_reminder_sent_at is null and p.end_at > p_now
+           where p.status = 'active' and not p.auto_renews and p.renewal_reminder_sent_at is null and p.end_at > p_now
              and p.end_at - make_interval(days => t.renewal_reminder_days) <= p_now loop
     q := app.enqueue_business_notification(r.business_id, 'placement_renewal_reminder',
         jsonb_build_object('placement_id', r.id, 'ends_at', r.end_at, 'business_name', (select name from public.businesses where id = r.business_id)),
@@ -232,7 +276,7 @@ begin
   end loop;
   for r in select l.id, l.business_id, l.ends_at from public.listings l
            join public.tenant_policies t on t.tenant_id = l.tenant_id
-           where l.status = 'active' and l.source <> 'paid' and l.ends_at is not null
+           where l.status = 'active' and not l.auto_renews and l.ends_at is not null
              and l.renewal_reminder_sent_at is null and l.ends_at > p_now
              and l.ends_at - make_interval(days => t.renewal_reminder_days) <= p_now loop
     q := app.enqueue_business_notification(r.business_id, 'listing_renewal_reminder',
@@ -299,7 +343,8 @@ revoke execute on function
   app.claim_notifications(int, interval), app.complete_notification(uuid, text), app.fail_notification(uuid, text),
   app.run_daily_maintenance(timestamptz), app.enqueue_business_notification(uuid, public.notification_kind, jsonb, text, timestamptz),
   app.start_verification_grace(uuid), app.resolve_verification_grace(uuid, text), app.end_expired_graces(timestamptz),
-  app.transactional_blocked(uuid, text), app.active_placements_json(uuid)
+  app.transactional_blocked(uuid, text), app.active_placements_json(uuid), app.business_recipients(uuid),
+  app.enqueue_staff_alert(uuid, jsonb, text), app.notify_business_or_alert_staff(uuid, public.notification_kind, jsonb, text)
   from public, anon, authenticated;
 grant execute on function
   app.claim_notifications(int, interval), app.complete_notification(uuid, text), app.fail_notification(uuid, text),

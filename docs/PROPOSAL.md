@@ -51,7 +51,7 @@ Notes:
 
 ---
 
-## 2. Schema overview (60 tables + 3 views, migrations in `supabase/migrations/`)
+## 2. Schema overview (61 tables + 3 views, migrations in `supabase/migrations/`)
 
 | Migration | Contents |
 |---|---|
@@ -69,6 +69,7 @@ Notes:
 | `…1100_public_views` | `public_listings`, `public_placements`: the only way the public reads tier and Featured (no commercial fields) |
 | `…1200_grace_notifications` | `tenant_policies`, `verification_grace`, `notifications` (email outbox), daily maintenance job, worker functions. See `docs/NOTIFICATIONS.md` |
 | `…1300_grace_rls_cron` | RLS for those tables, `featured_at_risk` admin view, `pg_cron` schedule |
+| `…1400_credits` | `account_credits` ledger and pro-rata crediting when a paid placement is ended by a verification lapse |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -97,7 +98,8 @@ Notes:
   to unverified (annual expiry, revoked proof, owner removed), a grace period opens (length per tenant in
   `tenant_policies`). The placement stays live; the owner is emailed immediately and again at 7 and 1 days.
   Re-verifying closes the grace period and cancels queued emails; if it runs out, all the business's
-  placements (paid and comped) end and the owner gets a final email. A daily job (`run_daily_maintenance`)
+  placements (paid and comped) end, the owner gets a final email, and **paid** placements credit the business the
+  unused part (`account_credits`). If nobody can be emailed, admin and sales are alerted instead. A daily job (`run_daily_maintenance`)
   also queues re-verification reminders (30/14/7 days before the date) and the 14-day renewal reminders.
   The database only queues email in an outbox with retries, leases and dedupe keys; a backend worker sends it
   (contract in `docs/NOTIFICATIONS.md`).
@@ -149,6 +151,7 @@ Roles: `admin` satisfies every check; `sales`; `editor`. `platform_admins` are c
 | Campaigns and recipients | – | – | – | – | read | write |
 | Payments, billing, tenant settings, staff | – | – | own payments: read | – | – | write |
 | Grace periods / `featured_at_risk` view | – | – | own business: read | – | read | read |
+| Account credits | – | – | own: read | – | read | read, apply, void (amount immutable) |
 | Email outbox (`notifications`) | – | – | – | – | – | read (audit); written only by the database and the worker |
 | Tenant policies (grace days, reminder schedule) | – | – | – | – | read | write |
 | Saved items | – | own | own | – | – | – |
@@ -185,7 +188,7 @@ cannot read or write another's rows; anon cannot forge analytics.
 ## 5. Tests
 
 `supabase/tests/run.sh` creates a fresh database, loads a tiny Supabase stub (`auth.uid()`, roles),
-applies every migration, then runs the suites. **314 assertions, all pass on Postgres 16.14.**
+applies every migration, then runs the suites. **349 assertions, all pass on Postgres 16.14.**
 
 | Suite | Covers |
 |---|---|
@@ -199,6 +202,7 @@ applies every migration, then runs the suites. **314 assertions, all pass on Pos
 | `t_08_public_views` | public views hide `source`/`created_by`/`status`, show only live rows of public businesses; base tables unreadable by anon and consumers. Mutation-checked |
 | `seed_check.sh` | loads `seed.sql` into a fresh database and asserts what anon, sales, editor and owners see (38 assertions) |
 | `t_09_grace_notifications` | grace start/stop, reminder ladder (one email per step, late run sends one), end-of-grace ends paid and comped placements, owner-removed fallback recipient, 1-year expiry end to end, renewal reminders, outbox claim/retry/lease/dedupe/suppression, and who can see or call what. Mutation-checked |
+| `t_10_staff_alerts_credits` | staff alerts when nobody can be emailed, credits (pro-rata, unstarted, renewed, comped/unpaid/no-record earn none, listing-cancel earns none), credit visibility and immutability. Mutation-checked |
 | `t_06_rls_audit` | every table has RLS + a policy, anon grants are minimal, tenant-immutability trigger everywhere |
 
 Bugs the tests caught while writing this: (1) my verification guard used trigger depth and would have
@@ -255,20 +259,31 @@ columns and the Premium tier.
    described in §2 and `docs/NOTIFICATIONS.md`. Applies to paid and comped placements alike, since verification
    is required for both. The grace length and reminder schedule are per-tenant settings.
 
-### Still open (none block the next slice, but need answers before the email worker is built)
-10. **Email provider: Resend or Postmark?** (`CLAUDE.md` allows either; `.env.example` has both slots.)
-11. **Who is alerted when a lapse has nobody to email** (owner removed and the business has no email)? Today
-    it appears in the sales dashboard view `featured_at_risk` only. Options: also email an Elevartemis staff
-    address, or leave it to the dashboard.
-12. **Paid Enhanced subscriptions get no renewal reminder from us** (Stripe renews them and extends the end
-    date each period, so a "14 days before" email would fire every month). If you want a reminder for annual
-    plans only, that depends on how billing is configured in V2.
-13. **Refund or credit policy** when a paid placement ends early because verification lapsed. A business
-    decision, not a schema one; worth deciding before the first customer.
+### Decided (round 4)
+11. **Staff are alerted when a lapse has nobody to email.** Admin and sales get an email at each grace step
+    (start, 7-day, 1-day, end). Implemented.
+12. **Renewal reminders only for fixed-term purchases** (recommended and implemented). New `auto_renews` flag on
+    listings and placements: recurring Stripe subscriptions get no reminder from us (Stripe's built-in renewal
+    emails cover annual plans). The Stripe webhook and "mark as paid" must set the flag.
+13. **Credit the business** when a paid placement ends early because verification lapsed: pro-rata for the
+    unused time, as an `account_credits` ledger staff apply by hand in V1. Implemented.
+
+### Still open
+10. **Email provider: Resend or Postmark?** See the comparison given in chat; recommendation is Postmark. Not
+    blocking until the email worker is built.
+14. **Cold B2B outreach conflicts with provider rules.** `CLAUDE.md` §11 says cold B2B email is allowed in the
+    US. That is true legally, but Resend's and Postmark's acceptable use policies both prohibit emailing
+    people who have not opted in, and either can suspend the account, which would also stop our service
+    emails. Proposal: keep cold outreach off the service-email provider entirely. V1 outreach is in person,
+    phone, postcard and DM anyway; if V3 adds email prospecting, use a provider built for it on a separate
+    domain (a new paid service, so I would ask first).
+15. **Recurring Featured subscriptions need cancelling when a placement ends early.** The database ends the
+    placement and credits the business, but cannot cancel the Stripe subscription. The backend (or staff) must,
+    or the customer keeps being billed. Needs an owner: backend job, or a staff checklist item in V1?
 
 ## 8. Next steps
 
-1. Answer items 10 to 13 when convenient.
+1. Decide items 10, 14 and 15 (none block the next slice).
 2. Run the migrations, seed and suites against a real Supabase project (`supabase db reset`). Not yet done:
    this container has no Supabase CLI. This also confirms `pg_cron` scheduling, which the local harness skips.
 3. Scaffold Next.js, extract design tokens from the mockups (`tenants.theme` is intentionally empty until

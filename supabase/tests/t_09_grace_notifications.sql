@@ -145,14 +145,23 @@ select test.ok(test.nq(test.gid('j'), 'placement_renewal_reminder') = 1, 'J: sen
 update public.placements set end_at = now() + interval '40 days' where business_id = test.gid('j');
 select test.ok((select renewal_reminder_sent_at is null from public.placements where business_id = test.gid('j')), 'J: extending the placement re-arms the reminder');
 select test.ok(test.nq(test.gid('a'), 'placement_renewal_reminder') = 0, 'J: a placement 60 days out gets none');
--- listings: a fixed-term (comped) listing is reminded; a paid (subscription-style) listing is not
+-- listings: any fixed-term listing is reminded (comped OR a prepaid one-off); a recurring subscription is not
 insert into test.g select 'k1', test.mk('grk1', true);
 insert into test.g select 'k2', test.mk('grk2', true);
+insert into test.g select 'k3', test.mk('grk3', true);
 update public.listings set source = 'founding_member', ends_at = now() + interval '10 days' where business_id = test.gid('k1');
-update public.listings set ends_at = now() + interval '10 days' where business_id = test.gid('k2');     -- source stays 'paid'
+update public.listings set ends_at = now() + interval '10 days' where business_id = test.gid('k2');                          -- paid, fixed term
+update public.listings set ends_at = now() + interval '10 days', auto_renews = true where business_id = test.gid('k3');     -- paid subscription
 select app.run_daily_maintenance();
 select test.ok(test.nq(test.gid('k1'), 'listing_renewal_reminder') = 1, 'J: comped fixed-term listing gets a renewal reminder');
-select test.ok(test.nq(test.gid('k2'), 'listing_renewal_reminder') = 0, 'J: paid listing does not (subscriptions renew themselves)');
+select test.ok(test.nq(test.gid('k2'), 'listing_renewal_reminder') = 1, 'J: prepaid fixed-term listing gets one too');
+select test.ok(test.nq(test.gid('k3'), 'listing_renewal_reminder') = 0, 'J: a recurring subscription does not (Stripe renews it and sends its own emails)');
+-- a monthly Featured subscription would otherwise be reminded every month
+insert into test.g select 'k4', test.mk('grk4', true);
+insert into public.placements (tenant_id, business_id, slot_type, start_at, end_at, source, status, auto_renews)
+  values (test.id('tenantA'), test.gid('k4'), 'homepage', now() - interval '5 days', now() + interval '10 days', 'paid', 'active', true);
+select app.run_daily_maintenance();
+select test.ok(test.nq(test.gid('k4'), 'placement_renewal_reminder') = 0, 'J: auto-renewing placement gets no renewal reminder');
 
 -- ===== K. outbox: claim / send / retry / lease / dedupe
 update public.notifications set status = 'sent', sent_at = now() where status in ('queued', 'sending', 'failed');   -- clean slate

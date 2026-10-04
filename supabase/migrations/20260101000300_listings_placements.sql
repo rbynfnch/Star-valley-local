@@ -10,7 +10,9 @@ create table public.listings (
   source      public.entitlement_source not null default 'paid',
   starts_at   timestamptz not null default now(),
   ends_at     timestamptz,                 -- null = open-ended (renewals extend this in place)
-  renewal_reminder_sent_at timestamptz,    -- 14 days before ends_at
+  renewal_reminder_sent_at timestamptz,    -- 14 days before ends_at (fixed-term only)
+  auto_renews boolean not null default false,  -- true = recurring Stripe subscription, end date moves forward each
+                                               -- period; Stripe's own renewal emails apply, so we send none
   created_by  uuid references auth.users on delete set null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
@@ -52,6 +54,7 @@ create table public.placements (
   source       public.entitlement_source not null,
   status       public.placement_status not null default 'pending',
   renewal_reminder_sent_at timestamptz,
+  auto_renews  boolean not null default false,         -- see listings.auto_renews
   created_by   uuid references auth.users on delete set null,
   created_at   timestamptz not null default now(),     -- waitlist order
   updated_at   timestamptz not null default now(),
