@@ -10,7 +10,7 @@ language plpgsql security invoker set search_path = public as $$
 declare
   k text; b public.businesses%rowtype; v text;
   allowed text[] := array['name','legal_name','address_line1','address_line2','city','postal_code','phone','website','email',
-                          'short_description','description','hours_note','home_community_id','primary_category_id'];
+                          'short_description','description','hours_note','home_community_id','primary_category_id','highlights','price_range'];
   published boolean;
 begin
   if not app.has_role(p_tenant, '{sales}') then raise exception 'sales staff only' using errcode = '42501'; end if;
@@ -19,7 +19,11 @@ begin
   if not found then raise exception 'business not found' using errcode = 'P0002'; end if;
   for k in select jsonb_object_keys(p_fields) loop
     if not (k = any (allowed)) then raise exception 'unknown field: %', k using errcode = '22023'; end if;
-    if jsonb_typeof(p_fields -> k) not in ('string', 'null') then raise exception 'field % must be text', k using errcode = '22023'; end if;
+    if k = 'highlights' then
+      if jsonb_typeof(p_fields -> k) not in ('array', 'null') then raise exception 'highlights must be a list' using errcode = '22023'; end if;
+    elsif k = 'price_range' then
+      if jsonb_typeof(p_fields -> k) not in ('number', 'null') then raise exception 'price level must be a number from 0 to 3' using errcode = '22023'; end if;
+    elsif jsonb_typeof(p_fields -> k) not in ('string', 'null') then raise exception 'field % must be text', k using errcode = '22023'; end if;
   end loop;
   published := b.status in ('unclaimed', 'claimed');
   if p_fields ? 'name' and nullif(btrim(coalesce(p_fields->>'name', '')), '') is null then raise exception 'name cannot be empty' using errcode = '22023'; end if;
@@ -35,6 +39,16 @@ begin
   if length(coalesce(p_fields->>'description', '')) > 1500 then raise exception 'description is limited to 1500 characters' using errcode = '22001'; end if;
   if length(coalesce(p_fields->>'name', '')) > 200 or length(coalesce(p_fields->>'phone', '')) > 40 then raise exception 'name or phone is too long' using errcode = '22001'; end if;
 
+  if p_fields ? 'highlights' and jsonb_typeof(p_fields -> 'highlights') = 'array' then
+    if jsonb_array_length(p_fields -> 'highlights') > 8 then raise exception 'at most 8 highlights' using errcode = '22023'; end if;
+    if exists (select 1 from jsonb_array_elements(p_fields -> 'highlights') e where jsonb_typeof(e) <> 'string' or length(btrim(e #>> '{}')) > 40) then
+      raise exception 'each highlight must be text of at most 40 characters' using errcode = '22023';
+    end if;
+  end if;
+  if p_fields ? 'price_range' and jsonb_typeof(p_fields -> 'price_range') = 'number' and ((p_fields ->> 'price_range')::numeric not in (0, 1, 2, 3)) then
+    raise exception 'price level must be 0, 1, 2 or 3' using errcode = '22023';
+  end if;
+
   update public.businesses set
     name              = case when p_fields ? 'name' then btrim(p_fields->>'name') else name end,
     legal_name        = case when p_fields ? 'legal_name' then nullif(btrim(coalesce(p_fields->>'legal_name', '')), '') else legal_name end,
@@ -49,7 +63,9 @@ begin
     description       = case when p_fields ? 'description' then nullif(btrim(coalesce(p_fields->>'description', '')), '') else description end,
     hours_note        = case when p_fields ? 'hours_note' then nullif(btrim(coalesce(p_fields->>'hours_note', '')), '') else hours_note end,
     home_community_id = case when p_fields ? 'home_community_id' then nullif(p_fields->>'home_community_id', '')::uuid else home_community_id end,
-    primary_category_id = case when p_fields ? 'primary_category_id' then nullif(p_fields->>'primary_category_id', '')::uuid else primary_category_id end
+    primary_category_id = case when p_fields ? 'primary_category_id' then nullif(p_fields->>'primary_category_id', '')::uuid else primary_category_id end,
+    highlights        = case when p_fields ? 'highlights' then coalesce((select array_agg(btrim(e) order by ord) from jsonb_array_elements_text(case when jsonb_typeof(p_fields -> 'highlights') = 'array' then p_fields -> 'highlights' else '[]'::jsonb end) with ordinality t(e, ord) where btrim(e) <> ''), '{}'::text[]) else highlights end,
+    price_range       = case when p_fields ? 'price_range' then (case when jsonb_typeof(p_fields -> 'price_range') = 'number' then (p_fields ->> 'price_range')::smallint end) else price_range end
   where id = p_business and tenant_id = p_tenant;
 end $$;
 
