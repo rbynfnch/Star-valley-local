@@ -25,6 +25,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run fixtures` | dev only: exports what the anonymous role can read from a seeded local DB to `.fixtures/` |
 | `npm run smoke` | end-to-end check of the rendered home page (needs `npm run dev`; rules from CLAUDE.md, accessibility, JSON-LD) |
 | `npm run smoke:directory` | end-to-end check of `/businesses`: search, filters, paging, redirects, hostile input, noindex rules |
+| `npm run smoke:hubs` | end-to-end check of the SEO hub pages, sitemap and robots.txt, including a crawl of every sitemap URL. Run it again with `--paging` against a server started as `SVL_PAGE_SIZE=5 npm run dev` to test pagination |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 
 ### Running without a Supabase project (development only)

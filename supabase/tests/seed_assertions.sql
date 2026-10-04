@@ -177,3 +177,52 @@ select test.as_anon();
 select test.ok(test.count($$select * from test.srch('zebra grooming')$$) = 0 and test.count($$select * from test.srch()$$) = 25, 'R7: an archived business disappears from search');
 select test.as_root();
 rollback;
+
+-- =====================================================================================================
+-- public.directory_counts (feeds the SEO hub pages) and the p_ids filter; always AS ANON.
+-- =====================================================================================================
+create temp table dc as
+  select c.slug as cat, m.slug as comm, d.n
+  from (select * from public.directory_counts((select id from public.tenants where slug = 'star-valley'))) d
+  left join public.categories c on c.id = d.category_id
+  left join public.communities m on m.id = d.community_id;
+grant select on dc to public;
+select test.as_anon();
+create temp table dc_anon as select * from public.directory_counts((select id from public.tenants where slug = 'star-valley'));
+grant select on dc_anon to public;
+select test.as_root();
+select test.ok((select count(*) from dc_anon) = (select count(*) from dc), 'H1: anon can call directory_counts and sees the same rows');
+select test.ok((select n from dc where cat is null and comm is null) = 26, 'H2: the grand total is the 26 public businesses (prospects excluded)');
+select test.ok((select n from dc where cat = 'home-property' and comm is null) = 6, 'H3: a top-level category counts its subcategories (plumbing, roofing, electrical, contractors, real estate, landscaping = 6)');
+select test.ok((select n from dc where cat = 'plumbing' and comm = 'alpine') = 1, 'H4: a business counts toward every community it SERVES (the Thayne plumber is in Alpine)');
+select test.ok(not exists (select 1 from dc where cat = 'dentists' and comm = 'etna'), 'H5: a combination with no business has NO row (its page must 404, not be thin)');
+select test.ok(not exists (select 1 from dc d join dc p on p.cat = (select parent.slug from public.categories c join public.categories parent on parent.id = c.parent_id where c.slug = d.cat)
+                                                         and p.comm is not distinct from d.comm and p.n < d.n where d.cat is not null),
+               'H6: a parent category never has fewer businesses than any of its subcategories');
+select test.ok(not exists (select 1 from dc where n < 1), 'H7: every row has at least one business');
+-- CONSISTENCY: every count equals what the search function returns for the same filters (hub pages and search never disagree)
+select test.as_anon();
+select test.ok(not exists (
+  select 1 from dc d
+  where d.n is distinct from (select count(*) from test.srch(comms => case when d.comm is null then null else array[d.comm] end,
+                                                              cats  => case when d.cat  is null then null else array[d.cat]  end, lim => 50))),
+  'H8: all ' || (select count(*) from dc) || ' counts equal the search function''s result for the same filters');
+-- p_ids
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 12, 0,
+                 (select array_agg(id) from public.businesses where slug = 'sample-valley-plumbing'))) = 1, 'H9: p_ids restricts the search to those businesses');
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 12, 0, array[]::uuid[])) = 0, 'H10: an empty p_ids matches nothing');
+select test.as_root();
+create temp table prospect_ids as select array_agg(id) as ids from public.businesses where slug = 'sample-prospect-welding';
+grant select on prospect_ids to public;
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 12, 0, (select ids from prospect_ids))) = 1,
+               'H11 setup: root CAN see a prospect when asking for its id');
+select test.as_anon();
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 12, 0, (select ids from prospect_ids))) = 0,
+               'H11: anon never gets a prospect, even when asking for it by its REAL id');
+-- p_ids semantics: NULL = no restriction, an empty array = match nothing. Callers must never let an empty list collapse to NULL.
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 50, 0, null)) = 26, 'H11b: p_ids NULL means unrestricted (documented hazard)');
+select test.ok((select count(*) from public.search_businesses((select id from public.tenants where slug = 'star-valley'), null, null, null, false, false, false, false, null, 'name', 50, 0,
+                 (select array_agg(id) from public.businesses where slug = 'no-such-business'))) = 26, 'H11c: ...so a subquery that finds nothing yields NULL and ALSO means unrestricted: the app must pass an explicit empty array');
+select test.ok(test.count($$select * from public.directory_counts(gen_random_uuid())$$) = 0, 'H12: another tenant has no counts');
+select test.ok((select string_agg(plural_name, ',' order by plural_name) from public.categories where slug in ('plumbing', 'roofing', 'electrical')) = 'Electricians,Plumbers,Roofers', 'H13: plural names are readable by anon');
+select test.as_root();

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBusinessesUrl, DEFAULT_FILTERS, expandCategoryIds, hasActiveFilters, pageWindow, parseSearchParams, toQueryString, type SearchFilters } from './search-params.ts';
+import { buildBusinessesUrl, DEFAULT_FILTERS, DEFAULT_PAGE_SIZE, pageSize, expandCategoryIds, hasActiveFilters, pageWindow, parseSearchParams, toQueryString, type SearchFilters } from './search-params.ts';
 
 test('empty input gives the defaults', () => assert.deepEqual(parseSearchParams({}), DEFAULT_FILTERS));
 
@@ -97,4 +97,20 @@ test('a top-level category selects its subcategories; unknown slugs select nothi
   assert.deepEqual(expandCategoryIds(['plumbing'], cats), ['p']);
   assert.deepEqual(expandCategoryIds(['nope'], cats), []);
   assert.deepEqual(expandCategoryIds(['home', 'eat'], cats).sort(), ['e', 'h', 'p', 'r']);
+});
+
+test('pageSize: 12 by default; SVL_PAGE_SIZE overrides it in development only, clamped to 1..50', () => {
+  const saved = { size: process.env.SVL_PAGE_SIZE, env: process.env.NODE_ENV };
+  const env = process.env as Record<string, string | undefined>;
+  try {
+    delete env.SVL_PAGE_SIZE; env.NODE_ENV = 'development';
+    assert.equal(pageSize(), DEFAULT_PAGE_SIZE);
+    env.SVL_PAGE_SIZE = '5'; assert.equal(pageSize(), 5);
+    for (const bad of ['0', '-3', '51', '2.5', 'abc', '', ' ']) { env.SVL_PAGE_SIZE = bad; assert.equal(pageSize(), DEFAULT_PAGE_SIZE, `"${bad}"`); }
+    env.SVL_PAGE_SIZE = '5'; env.NODE_ENV = 'production';
+    assert.equal(pageSize(), DEFAULT_PAGE_SIZE, 'production ignores the override');
+  } finally {
+    if (saved.size === undefined) delete env.SVL_PAGE_SIZE; else env.SVL_PAGE_SIZE = saved.size;
+    if (saved.env === undefined) delete env.NODE_ENV; else env.NODE_ENV = saved.env;
+  }
 });

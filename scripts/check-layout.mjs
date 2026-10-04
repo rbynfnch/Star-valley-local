@@ -13,6 +13,9 @@ const WIDTHS = [320, 360, 390, 600, 768, 900, 1024, 1280];
 // selector must be visible at widths >= min (and, when `hiddenBelow`, must NOT be visible below it)
 const PAGES = [
   { path: '/', visible: [{ sel: 'h1', min: 0 }, { sel: 'form[role="search"] button[type="submit"]', min: 0 }] },
+  { path: '/categories/plumbing', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }, { sel: '#featured-heading', min: 0 }, { sel: '#all-heading', min: 0 }] },
+  { path: '/communities/afton', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }, { sel: '#all-heading', min: 0 }] },
+  { path: '/categories/plumbing/afton', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }, { sel: '#featured-heading', min: 0 }, { sel: '#all-heading', min: 0 }] },
   { path: '/businesses', visible: [
     { sel: 'form[role="search"]', min: 0, optional: true },
     { sel: '#dir-q', min: 0 }, { sel: 'button[type="submit"][form="directory-form"]', min: 1024 },

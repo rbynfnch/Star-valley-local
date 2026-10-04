@@ -14,7 +14,8 @@
     "fixtures": "node scripts/export-fixtures.ts",
     "smoke": "node scripts/smoke-home.mjs",
     "smoke:directory": "node scripts/smoke-directory.mjs",
-    "check:layout": "node scripts/check-layout.mjs"
+    "check:layout": "node scripts/check-layout.mjs",
+    "smoke:hubs": "node scripts/smoke-hubs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
 // (`npm run fixtures`), so it shows exactly what the public could read. Never used in production (data.ts refuses).
@@ -11,7 +11,7 @@ type Snapshot = {
   regions: { tenant_id: string; name: string; sort_order: number }[];
   categories: (Category & { tenant_id: string; is_active: boolean })[]; communities: (Community & { tenant_id: string; is_active: boolean })[];
   community_events: (EventRow & { tenant_id: string; status: string })[];
-  public_placements: { tenant_id: string; business_id: string; slot_type: string }[];
+  public_placements: { tenant_id: string; business_id: string; slot_type: string; category_id: string | null; community_id: string | null }[];
   businesses: (BusinessRow & { tenant_id: string; status: string })[];
 };
 
@@ -44,17 +44,31 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
         select coalesce(jsonb_agg(t), '[]'::jsonb) from public.search_businesses(
           :'tenant'::uuid, :'q', nullif(:'comms', '')::uuid[], nullif(:'cats', '')::uuid[],
           :'verified'::boolean, :'featured'::boolean, :'deals'::boolean, :'quotes'::boolean,
-          nullif(:'price', '')::smallint[], :'sort', :'lim'::int, :'off'::int) t;
+          nullif(:'price', '')::smallint[], :'sort', :'lim'::int, :'off'::int,
+          case when :'ids_set'::int = 1 then :'ids'::uuid[] else null end) t;
         rollback;`;
       const v = (k: string, val: string) => ["-v", `${k}=${val}`];
       const r = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-d", db,
         ...v("tenant", id), ...v("q", q.q), ...v("comms", arr(q.communityIds)), ...v("cats", arr(q.categoryIds)),
         ...v("verified", String(q.verified)), ...v("featured", String(q.featured)), ...v("deals", String(q.deals)), ...v("quotes", String(q.quotes)),
-        ...v("price", arr(q.price)), ...v("sort", q.sort), ...v("lim", String(q.limit)), ...v("off", String(q.offset)), "-f", "-"],
+        ...v("price", arr(q.price)), ...v("sort", q.sort), ...v("lim", String(q.limit)), ...v("off", String(q.offset)),
+        ...v("ids_set", q.ids === undefined ? "0" : "1"), ...v("ids", `{${(q.ids ?? []).join(",")}}`), "-f", "-"],
         { input: sql, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
       if (r.status !== 0) throw new Error(`fixtures search failed: ${r.stderr}`);
       const json = r.stdout.split("\n").find((l) => l.startsWith("["));
       return splitSearchRows(JSON.parse(json ?? "[]") as (SearchRow & { total_count: number | string })[]);
+    },
+    async counts(id): Promise<CountRow[]> {
+      const db = process.env.SVL_FIXTURE_DB ?? "svl_seed";
+      const r = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-d", db, "-v", `tenant=${id}`, "-f", "-"], {
+        input: `begin; set local role anon; select coalesce(jsonb_agg(t), '[]'::jsonb) from public.directory_counts(:'tenant'::uuid) t; rollback;`, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+      if (r.status !== 0) throw new Error(`fixtures counts failed: ${r.stderr}`);
+      const json = r.stdout.split("\n").find((l) => l.startsWith("["));
+      return (JSON.parse(json ?? "[]") as CountRow[]).map((x) => ({ ...x, n: Number(x.n) }));
+    },
+    async livePlacements(id, slot, scopeIds) {
+      const col = slot === "category" ? "category_id" : "community_id";
+      return [...new Set(s.public_placements.filter((p) => p.tenant_id === id && p.slot_type === slot && scopeIds.includes((p as Record<string, unknown>)[col] as string)).map((p) => p.business_id))];
     },
     async homepageFeatured(id) {
       const ids = new Set(s.public_placements.filter((p) => p.tenant_id === id && p.slot_type === "homepage").map((p) => p.business_id));

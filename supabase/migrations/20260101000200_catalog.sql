@@ -8,6 +8,7 @@ create table public.categories (
   parent_id   uuid,
   slug        text not null,
   name        text not null,
+  plural_name text,                        -- how people search for it: "Plumbers" (for "Plumbers in Thayne"); null = use name
   description text,
   icon        text,
   color_token text,                        -- design-token name, e.g. 'brick', 'lake', 'sunset'

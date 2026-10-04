@@ -70,7 +70,7 @@ Notes:
 | `…1200_grace_notifications` | `tenant_policies`, `verification_grace`, `notifications` (email outbox), daily maintenance job, worker functions. See `docs/NOTIFICATIONS.md` |
 | `…1300_grace_rls_cron` | RLS for those tables, `featured_at_risk` admin view, `pg_cron` schedule |
 | `…1400_credits` | `account_credits` ledger and pro-rata crediting when a paid placement is ended by a verification lapse |
-| `…1500_search` | `search_businesses()`: ranked full-text + fuzzy search, filters and paging, security invoker (callable by anon, still bound by RLS) |
+| `…1500_search` | `search_businesses()` (ranked full-text + fuzzy search, filters, paging, optional id list) and `directory_counts()` (businesses per category x community, for the SEO hubs); both security invoker, callable by anon, still bound by RLS |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -148,7 +148,17 @@ The home page already links to these. Only `/` exists so far; the rest 404 until
 ### Slice 2 status
 
 Done: tenant resolution (host to tenant), tenant theme, header/footer, **home page**, **directory and search**
-(`/businesses`). Not yet: category/community pages, business profile, events, deals, articles, sitemap.
+(`/businesses`), **SEO hub pages** (category, community, category x community), **sitemap.xml and robots.txt**.
+Not yet: business profile, events, deals, articles, Things to Do.
+
+SEO hub decisions: a hub page exists only if it has businesses (a category x community pair with none is a 404, decided
+from `directory_counts()`, which a test proves always equals what the search returns). A hub is **indexed and listed in
+the sitemap only with at least 2 listings** (`MIN_INDEXABLE_LISTINGS`): otherwise one valley-wide business would appear
+on ten near-identical "Plumbers in <town>" pages, which search engines treat as doorway pages. Thin hubs still work for
+visitors and are `noindex`. Hubs show a Featured strip on page 1 only (category slot on category and combination
+pages, community slot on community pages), labelled as paid placements, with `rel="sponsored"` links. The sitemap is
+per tenant, and robots.txt deliberately does NOT block search URLs (crawlers must fetch them to see their `noindex`).
+Pagination keeps one URL per page (`?page=N`, self-canonical), and unknown query parameters never create new URLs.
 
 Directory decisions: ranking and filtering live in one database function (`search_businesses`), tested in SQL as the
 anonymous role. **Paid placement never changes organic ranking** (a test compares result order with and without

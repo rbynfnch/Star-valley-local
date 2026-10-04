@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cols } from "./queries.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // Production implementation: the anonymous (public) key only. Flat selects, no relationship embedding, so every
 // query maps 1:1 to a table/columns the anon role can read (verified by anon-access.test.ts).
@@ -52,12 +52,24 @@ export function supabaseDirectory(url = process.env.NEXT_PUBLIC_SUPABASE_URL, ke
       if (ids.length === 0) return [];
       return ok(await db.from("businesses").select(cols("businesses")).eq("tenant_id", tenantId).in("id", ids), "businesses") as unknown as BusinessRow[];
     },
+    async counts(tenantId): Promise<CountRow[]> {
+      const r = await db.rpc("directory_counts", { p_tenant: tenantId });
+      if (r.error) throw new Error(`directory_counts: ${r.error.message}`);
+      return ((r.data ?? []) as unknown as { category_id: string | null; community_id: string | null; n: number | string }[]).map((x) => ({ ...x, n: Number(x.n) }));
+    },
+    async livePlacements(tenantId, slot, scopeIds) {
+      if (scopeIds.length === 0) return [];                      // nothing to look up (and `in ()` would be an error)
+      const col = slot === "category" ? "category_id" : "community_id";
+      const rows = ok(await db.from("public_placements").select(cols("public_placements")).eq("tenant_id", tenantId).eq("slot_type", slot).in(col, scopeIds), "public_placements") as unknown as { business_id: string }[];
+      return [...new Set(rows.map((r) => r.business_id))];
+    },
     async searchBusinesses(tenantId, q: SearchQuery): Promise<SearchResult> {
       const r = await db.rpc("search_businesses", {
         p_tenant: tenantId, p_q: q.q || null,
         p_communities: q.communityIds.length ? q.communityIds : null, p_categories: q.categoryIds.length ? q.categoryIds : null,
         p_verified: q.verified, p_featured: q.featured, p_with_deals: q.deals, p_accepts_quotes: q.quotes,
         p_price: q.price.length ? q.price : null, p_sort: q.sort, p_limit: q.limit, p_offset: q.offset,
+        p_ids: q.ids === undefined ? null : q.ids,     // an EMPTY list must stay [] (NULL would mean "no restriction")
       });
       if (r.error) throw new Error(`search_businesses: ${r.error.message}`);
       return splitSearchRows((r.data ?? []) as unknown as (SearchRow & { total_count: number | string })[]);

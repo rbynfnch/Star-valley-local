@@ -21,9 +21,9 @@ for (const [table, columns] of Object.entries(PUBLIC_READS)) {
   });
 }
 
-for (const fn of PUBLIC_RPC) {
+for (const [fn, args] of Object.entries(PUBLIC_RPC)) {
   test(`anon can EXECUTE public.${fn}() and gets only public rows`, { skip }, () => {
-    const r = psql(`begin; set local role anon; select count(*) from public.${fn}((select id from public.tenants limit 1), null); rollback;`);
+    const r = psql(`begin; set local role anon; select count(*) from public.${fn}(${args.replace('$T', '(select id from public.tenants limit 1)')}); rollback;`);
     assert.equal(r.status, 0, r.stderr);
     assert.ok(Number(r.stdout.split('\n').find((l) => /^\d+$/.test(l))) >= 1);
   });

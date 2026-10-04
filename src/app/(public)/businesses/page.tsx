@@ -10,7 +10,7 @@ import { FiltersDisclosure } from "@/components/directory/FiltersDisclosure";
 import { Pagination } from "@/components/directory/Pagination";
 import { getDirectoryData } from "@/lib/directory/data";
 import { toBusinessCard, topLevelCategories } from "@/lib/directory/home";
-import { buildBusinessesUrl, expandCategoryIds, hasActiveFilters, PAGE_SIZE, parseSearchParams } from "@/lib/directory/search-params";
+import { buildBusinessesUrl, expandCategoryIds, hasActiveFilters, pageSize, parseSearchParams } from "@/lib/directory/search-params";
 import { getTenant } from "@/lib/tenant/resolve";
 
 export async function generateMetadata(props: PageProps<"/businesses">): Promise<Metadata> {
@@ -38,18 +38,18 @@ export default async function Businesses(props: PageProps<"/businesses">) {
   const categoryIds = expandCategoryIds(filters.categories, categories);
   const query = {
     q: filters.q, communityIds, categoryIds, verified: filters.verified, featured: filters.featured, deals: filters.deals,
-    quotes: filters.quotes, price: filters.price, sort: filters.sort, limit: PAGE_SIZE, offset: (filters.page - 1) * PAGE_SIZE,
+    quotes: filters.quotes, price: filters.price, sort: filters.sort, limit: pageSize(), offset: (filters.page - 1) * pageSize(),
   };
   // NOTE: logging search appearances (CLAUDE.md §9) arrives with event tracking (slice 5).
   const { rows, total } = await data.searchBusinesses(tenant.id, query);
   if (rows.length === 0 && filters.page > 1) {
     // A stale or hand-edited page number: send them to the last real page (or the first, if there is nothing).
     const count = (await data.searchBusinesses(tenant.id, { ...query, limit: 1, offset: 0 })).total;
-    redirect(buildBusinessesUrl(filters, { page: count > 0 ? Math.ceil(count / PAGE_SIZE) : 1 }));
+    redirect(buildBusinessesUrl(filters, { page: count > 0 ? Math.ceil(count / pageSize()) : 1 }));
   }
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize()));
   const tops = topLevelCategories(categories);
-  const first = (filters.page - 1) * PAGE_SIZE + 1;
+  const first = (filters.page - 1) * pageSize() + 1;
 
   return (
     <main id="main">
@@ -88,7 +88,7 @@ export default async function Businesses(props: PageProps<"/businesses">) {
             <h2 id="results-heading" className="sr-only">Results</h2>
             <p role="status" aria-live="polite" className="mb-4 text-lg font-semibold text-text">
               {total === 0 ? "No businesses found" : total === 1 ? "1 business found" : `${total.toLocaleString("en-US")} businesses found`}
-              {total > PAGE_SIZE && <span className="ml-2 text-base font-normal text-text-muted">Showing {first}–{first + rows.length - 1}</span>}
+              {total > pageSize() && <span className="ml-2 text-base font-normal text-text-muted">Showing {first}–{first + rows.length - 1}</span>}
             </p>
             <ActiveFilters filters={filters} communities={communities} categories={categories} />
 
@@ -106,7 +106,7 @@ export default async function Businesses(props: PageProps<"/businesses">) {
                 </p>
               </div>
             )}
-            <Pagination filters={filters} totalPages={totalPages} />
+            <Pagination current={filters.page} totalPages={totalPages} hrefFor={(p) => buildBusinessesUrl(filters, { page: p })} />
           </section>
         </div>
       </div>

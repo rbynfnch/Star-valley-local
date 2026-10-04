@@ -58,6 +58,16 @@ from t cross join (values
 ) as v(parent, slug, name, ord)
 join public.categories p on p.tenant_id = t.id and p.slug = v.parent and p.parent_id is null;
 
+-- plural names for the SEO pages ("Plumbers in Thayne"); top-level categories keep their own name
+update public.categories c set plural_name = v.plural
+from (values ('restaurants-cafes','Restaurants & Cafes'), ('bars-breweries','Bars & Breweries'), ('plumbing','Plumbers'), ('roofing','Roofers'),
+  ('electrical','Electricians'), ('contractors','Contractors'), ('real-estate','Real Estate Agents'), ('landscaping','Landscapers'),
+  ('dentists','Dentists'), ('medical','Medical Providers'), ('fitness','Gyms & Fitness'), ('beauty-salons','Salons'),
+  ('pets-veterinary','Veterinarians'), ('kids-education','Kids & Education'), ('child-care','Child Care'), ('outfitters-gear','Outfitters'),
+  ('lodging','Lodging'), ('retail-gifts','Gift Shops'), ('hardware-mercantile','Hardware & General Stores'), ('legal','Lawyers'),
+  ('accounting-insurance','Accountants & Insurance Agents'), ('marketing','Marketing Services')) as v(slug, plural)
+where c.slug = v.slug and c.tenant_id = (select id from public.tenants where slug = 'star-valley');
+
 insert into public.event_categories (tenant_id, slug, name, sort_order)
 select t.id, v.slug, v.name, v.ord from public.tenants t, (values
   ('festivals-fairs','Festivals & Fairs',1), ('music-concerts','Music & Concerts',2), ('sports','Sports',3),

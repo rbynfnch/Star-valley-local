@@ -1,7 +1,13 @@
 // URL <-> search filters for /businesses. Everything from the query string is untrusted: each value is validated and
 // anything unrecognised is dropped, so the page can never be driven into an unexpected state by a crafted URL.
 
-export const PAGE_SIZE = 12;
+export const DEFAULT_PAGE_SIZE = 12;
+/** Listings per page. SVL_PAGE_SIZE (1..50) overrides it for development and tests ONLY; production always uses 12. */
+export function pageSize(): number {
+  if (process.env.NODE_ENV === "production") return DEFAULT_PAGE_SIZE;
+  const n = Number(process.env.SVL_PAGE_SIZE);
+  return Number.isInteger(n) && n >= 1 && n <= 50 ? n : DEFAULT_PAGE_SIZE;
+}
 export const MAX_PAGE = 500;
 export const SORTS = ["relevance", "name"] as const;
 export type Sort = (typeof SORTS)[number];

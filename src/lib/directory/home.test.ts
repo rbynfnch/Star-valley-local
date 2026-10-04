@@ -5,11 +5,11 @@ import type { BusinessRow, Category, Community, EventRow } from './types.ts';
 
 const TZ = 'America/Denver';
 const now = new Date('2026-10-04T18:00:00Z');
-const communities: Community[] = [{ id: 'c1', slug: 'afton', name: 'Afton', sort_order: 1 }, { id: 'c2', slug: 'thayne', name: 'Thayne', sort_order: 2 }];
+const communities: Community[] = [{ id: 'c1', slug: 'afton', name: 'Afton', state: 'WY', sort_order: 1 }, { id: 'c2', slug: 'thayne', name: 'Thayne', state: 'WY', sort_order: 2 }];
 const categories: Category[] = [
-  { id: 'k1', slug: 'eat', name: 'Eat & Drink', description: null, color_token: 'brick', parent_id: null, sort_order: 1 },
-  { id: 'k2', slug: 'plumbing', name: 'Plumbing', description: null, color_token: null, parent_id: 'k0', sort_order: 1 },
-  { id: 'k0', slug: 'home', name: 'Home & Property', description: null, color_token: 'lake', parent_id: null, sort_order: 0 },
+  { id: 'k1', slug: 'eat', name: 'Eat & Drink', plural_name: null, description: null, color_token: 'brick', parent_id: null, sort_order: 1 },
+  { id: 'k2', slug: 'plumbing', name: 'Plumbing', plural_name: 'Plumbers', description: null, color_token: null, parent_id: 'k0', sort_order: 1 },
+  { id: 'k0', slug: 'home', name: 'Home & Property', plural_name: null, description: null, color_token: 'lake', parent_id: null, sort_order: 0 },
 ];
 const ev = (o: Partial<EventRow>): EventRow => ({ id: 'e', slug: 'e', title: 'E', starts_at: '2026-10-10T14:00:00Z', ends_at: null, all_day: false, community_id: 'c1', category_id: 'k1', venue_name: 'Town Square', rrule: null, recurrence_until: null, exdates: [], ...o });
 const biz = (o: Partial<BusinessRow>): BusinessRow => ({ id: 'b', slug: 'b', name: 'Sample B', short_description: 'Desc', home_community_id: 'c2', primary_category_id: 'k2', phone: '307-555-0101', website: 'https://b.example', address_line1: '1 Sample St', city: 'Thayne', state: 'WY', postal_code: '83127', verification_level: 'green', ...o });

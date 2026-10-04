@@ -1,6 +1,6 @@
 export type Tenant = { id: string; slug: string; name: string; tagline: string | null; logo_path: string | null; theme: unknown; timezone: string };
-export type Category = { id: string; slug: string; name: string; description: string | null; color_token: string | null; parent_id: string | null; sort_order: number };
-export type Community = { id: string; slug: string; name: string; sort_order: number };
+export type Category = { id: string; slug: string; name: string; plural_name: string | null; description: string | null; color_token: string | null; parent_id: string | null; sort_order: number };
+export type Community = { id: string; slug: string; name: string; state: string; sort_order: number };
 export type EventRow = {
   id: string; slug: string; title: string; starts_at: string; ends_at: string | null; all_day: boolean;
   community_id: string | null; category_id: string | null; venue_name: string | null;
@@ -19,7 +19,12 @@ export type SearchQuery = {
   q: string; communityIds: string[]; categoryIds: string[];
   verified: boolean; featured: boolean; deals: boolean; quotes: boolean;
   price: number[]; sort: "relevance" | "name"; limit: number; offset: number;
+  /** Restrict to these businesses. `undefined` = no restriction; `[]` = match NOTHING (the database treats NULL as "no
+   *  restriction", so an empty list must travel as an explicit empty array, never be dropped). */
+  ids?: string[];
 };
+/** public.directory_counts(): null category/community means "all". A row exists only if at least one business matches. */
+export type CountRow = { category_id: string | null; community_id: string | null; n: number };
 export type SearchRow = BusinessRow & { price_range: number | null; live_placement: boolean; accepts_quotes: boolean; has_live_deal: boolean };
 export type SearchResult = { rows: SearchRow[]; total: number };
 
@@ -38,4 +43,8 @@ export interface DirectoryData {
   homepageFeatured(tenantId: string): Promise<BusinessRow[]>;
   /** public.search_businesses(): ranking, filters and paging happen in the database. `total` is the full match count. */
   searchBusinesses(tenantId: string, query: SearchQuery): Promise<SearchResult>;
+  /** Businesses per category x community (see CountRow); drives which SEO hub pages exist. */
+  counts(tenantId: string): Promise<CountRow[]>;
+  /** Business ids with a LIVE placement in `slot` whose scope is one of `scopeIds` (category or community ids). */
+  livePlacements(tenantId: string, slot: "category" | "community", scopeIds: string[]): Promise<string[]>;
 }
