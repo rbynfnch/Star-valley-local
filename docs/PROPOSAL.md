@@ -72,6 +72,7 @@ Notes:
 | `…1400_credits` | `account_credits` ledger and pro-rata crediting when a paid placement is ended by a verification lapse |
 | `…1500_search` | `search_businesses()` (ranked full-text + fuzzy search, filters, paging, optional id list) and `directory_counts()` (businesses per category x community, for the SEO hubs); both security invoker, callable by anon, still bound by RLS |
 | `…1600_business_profile` | `business_profile(tenant, slug)` returns one jsonb document and is the single place that decides Free vs Enhanced: Free gets logo + ONE photo, short description only, no email/services/links/FAQs/deals; Enhanced gets everything. security invoker, callable by anon, bound by RLS |
+| `…1700_import_businesses` | `import_businesses(tenant, rows)`: commits an approved CSV import. Always creates **prospects** (hidden), writes with source `import` so owner/admin edits survive re-imports, re-checks duplicates at write time, suffixes colliding slugs, and reports per row (created / updated / skipped_duplicate / error). security invoker: sales staff and service_role only |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -346,3 +347,7 @@ columns and the Premium tier.
 - Free vs Enhanced is enforced twice: in SQL (`business_profile`) and again in `buildProfileView`.
 - Verification dates show only when verified. No ratings, reviews, distance or "open now".
 - Links still pointing at pages not built yet: `/list-your-business?claim=`, `/suggest-update?business=`.
+
+## CSV import (admin slice, part 1)
+- `src/lib/import/` plans an import without writing (parse, map columns, normalise, dedupe, classify rows); `import_businesses()` commits it.
+- Known limitation: the duplicate helper compares street addresses by trigram similarity, so "1 Pine St" and "2 Pine St" look alike. Same name + near address is flagged as a duplicate. The cost is a skipped real neighbour, not a duplicate listing; the review step is where an admin overrides it (`force`).
