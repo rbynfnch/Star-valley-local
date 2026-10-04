@@ -6,6 +6,7 @@ DB=${DB:-svl_test}
 Q="psql -X -q -t -A -d $DB -v ON_ERROR_STOP=1"
 CAT=$($Q -c "select test.id('catEat')"); T=$($Q -c "select test.id('tenantA')")
 $Q -c "delete from public.placements where category_id='$CAT' and business_id in (test.id('biz3'),test.id('biz4'),test.id('biz5'))" >/dev/null   # rerunnable
+$Q -c "update public.placement_limits set max_slots = 3 where tenant_id = '$T' and slot_type = 'category'" >/dev/null   # independent of other suites
 # catEat limit is 3 and biz6 already holds one; add a second so exactly ONE slot is left.
 $Q -c "select test.place(test.id('biz3'), 'category', '$CAT', now(), now() + interval '30 days')" >/dev/null
 INS() { echo "insert into public.placements (tenant_id,business_id,slot_type,category_id,start_at,end_at,source,status)

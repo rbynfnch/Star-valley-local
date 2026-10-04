@@ -75,8 +75,9 @@ create function app.recompute_verification(p_business uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   has_owner boolean; green_at timestamptz; gold_at timestamptz;
-  lvl public.verification_level; v_at timestamptz; due timestamptz;
+  lvl public.verification_level; v_at timestamptz; due timestamptz; old_lvl public.verification_level;
 begin
+  select verification_level into old_lvl from public.businesses where id = p_business;
   select exists (select 1 from public.business_owners where business_id = p_business) into has_owner;
   select max(verified_at) into green_at from public.verification_proofs
    where business_id = p_business and revoked_at is null and kind in ('sms_code', 'email_link')
@@ -99,6 +100,13 @@ begin
    where id = p_business
      and (verification_level, verified_at, reverify_due_at) is distinct from (lvl, v_at, due);
   perform set_config('app.verification_write', 'off', true);
+
+  -- Featured depends on verification: losing it starts a grace period, regaining it ends the grace period.
+  if old_lvl <> 'none' and lvl = 'none' then
+    perform app.start_verification_grace(p_business);
+  elsif old_lvl = 'none' and lvl <> 'none' then
+    perform app.resolve_verification_grace(p_business, 'reverified');
+  end if;
 end $$;
 
 create function app.proofs_changed() returns trigger language plpgsql security definer set search_path = '' as $$

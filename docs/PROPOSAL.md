@@ -1,6 +1,6 @@
 # Star Valley Local — Proposal for review: repo structure, schema, RLS
 
-Status: **proposal, no UI written. Rounds 1 and 2 of decisions applied (see §7); only item 4 is still open.** The schema and RLS are real migrations that apply cleanly on
+Status: **proposal, no UI written. All open decisions from rounds 1 to 3 are applied (see §7).** The schema and RLS are real migrations that apply cleanly on
 Postgres 16 and pass the test suites described in §5. Nothing here has been run against a real
 Supabase project yet (see "What is not verified").
 
@@ -51,7 +51,7 @@ Notes:
 
 ---
 
-## 2. Schema overview (57 tables + 2 public views, migrations in `supabase/migrations/`)
+## 2. Schema overview (60 tables + 3 views, migrations in `supabase/migrations/`)
 
 | Migration | Contents |
 |---|---|
@@ -67,6 +67,8 @@ Notes:
 | `…0900_billing` | `tenant_products`, `billing_accounts`, `payments`, `stripe_events` |
 | `…1000_rls` | RLS on every table, grants, tenant-immutability triggers |
 | `…1100_public_views` | `public_listings`, `public_placements`: the only way the public reads tier and Featured (no commercial fields) |
+| `…1200_grace_notifications` | `tenant_policies`, `verification_grace`, `notifications` (email outbox), daily maintenance job, worker functions. See `docs/NOTIFICATIONS.md` |
+| `…1300_grace_rls_cron` | RLS for those tables, `featured_at_risk` admin view, `pg_cron` schedule |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -91,6 +93,14 @@ Notes:
   Green = owner linked + valid `sms_code|email_link` proof (< 1 year); Gold = Green + `postcard |
   google_business_profile | business_license`. Direct writes to the verification columns are rejected for
   everyone, including superuser. `expire_verifications()` is the daily downgrade job.
+- **Verification lapse has a 14-day grace period.** If a business holding an active Featured placement drops
+  to unverified (annual expiry, revoked proof, owner removed), a grace period opens (length per tenant in
+  `tenant_policies`). The placement stays live; the owner is emailed immediately and again at 7 and 1 days.
+  Re-verifying closes the grace period and cancels queued emails; if it runs out, all the business's
+  placements (paid and comped) end and the owner gets a final email. A daily job (`run_daily_maintenance`)
+  also queues re-verification reminders (30/14/7 days before the date) and the 14-day renewal reminders.
+  The database only queues email in an outbox with retries, leases and dedupe keys; a backend worker sends it
+  (contract in `docs/NOTIFICATIONS.md`).
 - **Field-level provenance** for `businesses` columns lives in `business_field_sources`, maintained by
   trigger. An `import` write can never overwrite a field last written by `owner` or `admin`; the trigger
   reverts it. Child tables (hours, services, links, FAQs, photos) carry `source/updated_by/updated_at`
@@ -138,6 +148,9 @@ Roles: `admin` satisfies every check; `sales`; `editor`. `platform_admins` are c
 | Newsletter / templates / subscribers / social | – | – | – | write | – | write |
 | Campaigns and recipients | – | – | – | – | read | write |
 | Payments, billing, tenant settings, staff | – | – | own payments: read | – | – | write |
+| Grace periods / `featured_at_risk` view | – | – | own business: read | – | read | read |
+| Email outbox (`notifications`) | – | – | – | – | – | read (audit); written only by the database and the worker |
+| Tenant policies (grace days, reminder schedule) | – | – | – | – | read | write |
 | Saved items | – | own | own | – | – | – |
 | `stripe_events`, `platform_admins` | service role only | | | | | |
 
@@ -172,7 +185,7 @@ cannot read or write another's rows; anon cannot forge analytics.
 ## 5. Tests
 
 `supabase/tests/run.sh` creates a fresh database, loads a tiny Supabase stub (`auth.uid()`, roles),
-applies every migration, then runs the suites. **228 assertions, all pass on Postgres 16.14.**
+applies every migration, then runs the suites. **314 assertions, all pass on Postgres 16.14.**
 
 | Suite | Covers |
 |---|---|
@@ -185,6 +198,7 @@ applies every migration, then runs the suites. **228 assertions, all pass on Pos
 | `t_07_comped_and_lapse` | comped placements exempt from Enhanced (still need verified), paid still needs Enhanced, lapse/shorten/cancel ends paid placements and frees the slot, renewal and successor listing leave them alone. Mutation-checked: removing the trigger fails the suite |
 | `t_08_public_views` | public views hide `source`/`created_by`/`status`, show only live rows of public businesses; base tables unreadable by anon and consumers. Mutation-checked |
 | `seed_check.sh` | loads `seed.sql` into a fresh database and asserts what anon, sales, editor and owners see (38 assertions) |
+| `t_09_grace_notifications` | grace start/stop, reminder ladder (one email per step, late run sends one), end-of-grace ends paid and comped placements, owner-removed fallback recipient, 1-year expiry end to end, renewal reminders, outbox claim/retry/lease/dedupe/suppression, and who can see or call what. Mutation-checked |
 | `t_06_rls_audit` | every table has RLS + a policy, anon grants are minimal, tenant-immutability trigger everywhere |
 
 Bugs the tests caught while writing this: (1) my verification guard used trigger depth and would have
@@ -236,17 +250,27 @@ columns and the Premium tier.
    `email_subscribers`.
 9. **Seed data** is clearly fictional: "Sample …" names, reserved 555-01xx phones, `.example` websites.
 
-### Still open
-4. **Verification lapse vs. Featured** (needs your decision). Today, if a Featured business's verification
-   expires (1 year) or its owner is removed, it drops to unverified but its placement keeps running and
-   stays public until `end_at`. The check "must be verified" only runs when a placement is activated.
-   Options: (1) end the placement immediately, same as the Enhanced-lapse rule; (2) a grace period
-   (suggest 14 days) then end it; (3) leave it. I recommend 2. Not implemented.
+### Decided (round 3)
+4. **Verification lapse: 14-day grace period, with automated email reminders from the backend.** Implemented as
+   described in §2 and `docs/NOTIFICATIONS.md`. Applies to paid and comped placements alike, since verification
+   is required for both. The grace length and reminder schedule are per-tenant settings.
+
+### Still open (none block the next slice, but need answers before the email worker is built)
+10. **Email provider: Resend or Postmark?** (`CLAUDE.md` allows either; `.env.example` has both slots.)
+11. **Who is alerted when a lapse has nobody to email** (owner removed and the business has no email)? Today
+    it appears in the sales dashboard view `featured_at_risk` only. Options: also email an Elevartemis staff
+    address, or leave it to the dashboard.
+12. **Paid Enhanced subscriptions get no renewal reminder from us** (Stripe renews them and extends the end
+    date each period, so a "14 days before" email would fire every month). If you want a reminder for annual
+    plans only, that depends on how billing is configured in V2.
+13. **Refund or credit policy** when a paid placement ends early because verification lapsed. A business
+    decision, not a schema one; worth deciding before the first customer.
 
 ## 8. Next steps
 
-1. Your call on item 4; I implement it with tests.
+1. Answer items 10 to 13 when convenient.
 2. Run the migrations, seed and suites against a real Supabase project (`supabase db reset`). Not yet done:
-   this container has no Supabase CLI.
+   this container has no Supabase CLI. This also confirms `pg_cron` scheduling, which the local harness skips.
 3. Scaffold Next.js, extract design tokens from the mockups (`tenants.theme` is intentionally empty until
    then), and build slice 2 (public directory).
+4. Slice 4 builds the email worker against `docs/NOTIFICATIONS.md`.
