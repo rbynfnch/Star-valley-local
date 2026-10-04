@@ -44,7 +44,7 @@ create type public.inquiry_status    as enum ('new', 'contacted', 'in_progress',
 create type public.submission_kind   as enum ('update', 'business', 'event');
 create type public.submission_status as enum ('pending', 'approved', 'rejected', 'spam');
 create type public.tracking_type     as enum ('profile_view','website_click','phone_click','directions_click',
-                                              'quote_request','search_appearance','deal_view');
+                                              'quote_request','search_appearance','deal_view','article_view');
 
 -- Content
 create type public.content_status   as enum ('draft', 'scheduled', 'published', 'archived');

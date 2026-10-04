@@ -93,10 +93,12 @@ begin
     lvl := 'none'; v_at := null; due := null;
   end if;
 
+  perform set_config('app.verification_write', 'on', true);
   update public.businesses
      set verification_level = lvl, verified_at = v_at, reverify_due_at = due
    where id = p_business
      and (verification_level, verified_at, reverify_due_at) is distinct from (lvl, v_at, due);
+  perform set_config('app.verification_write', 'off', true);
 end $$;
 
 create function app.proofs_changed() returns trigger language plpgsql security definer set search_path = '' as $$
@@ -108,8 +110,10 @@ create function app.owners_changed() returns trigger language plpgsql security d
 declare b uuid := coalesce(new.business_id, old.business_id);
 begin
   if tg_op = 'INSERT' then
+    perform set_config('app.verification_write', 'on', true);
     update public.businesses set status = 'claimed', claimed_at = coalesce(claimed_at, now())
      where id = b and status = 'unclaimed';
+    perform set_config('app.verification_write', 'off', true);
   elsif not exists (select 1 from public.business_owners where business_id = b) then
     update public.businesses set status = 'unclaimed' where id = b and status = 'claimed';
   end if;

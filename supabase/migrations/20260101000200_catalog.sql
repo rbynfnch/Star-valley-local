@@ -246,7 +246,8 @@ begin
      or new.verified_at is distinct from old.verified_at
      or new.reverify_due_at is distinct from old.reverify_due_at
      or new.claimed_at is distinct from old.claimed_at then
-    if pg_trigger_depth() < 2 then
+    -- only app.recompute_verification() / app.owners_changed() raise this flag (transaction-local)
+    if coalesce(current_setting('app.verification_write', true), '') <> 'on' then
       raise exception 'verification fields are derived; add/remove proofs or owners instead' using errcode = '42501';
     end if;
   end if;
