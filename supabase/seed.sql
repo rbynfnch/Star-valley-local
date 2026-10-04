@@ -264,7 +264,9 @@ insert into public.community_events (tenant_id, slug, title, description, status
 select t.id, v.slug, v.title, v.descr, 'published',
        (select id from public.communities where tenant_id = t.id and slug = v.comm),
        (select id from public.event_categories where tenant_id = t.id and slug = v.cat),
-       v.venue, date_trunc('day', now()) + (v.days || ' days')::interval + v.start_t, date_trunc('day', now()) + (v.days || ' days')::interval + v.end_t, v.rr
+       v.venue,
+       (date_trunc('day', now() at time zone t.timezone) + (v.days || ' days')::interval + v.start_t) at time zone t.timezone,   -- wall-clock times in the TENANT's timezone
+       (date_trunc('day', now() at time zone t.timezone) + (v.days || ' days')::interval + v.end_t) at time zone t.timezone, v.rr
 from public.tenants t, (values
   ('sample-farmers-market','Sample Farmers Market','Weekly produce and crafts.','afton','food-drink','Sample Town Square',1,interval '8 hours',interval '13 hours','FREQ=WEEKLY;BYDAY=SA'),
   ('sample-pumpkin-fest','Sample Pumpkin Festival','Family harvest festival.','etna','festivals-fairs','Sample Fairgrounds',6,interval '10 hours',interval '16 hours',null),

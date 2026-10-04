@@ -127,6 +127,34 @@ Notes:
 
 ---
 
+### Public URL scheme (decided while building slice 2)
+
+| Path | Page |
+|---|---|
+| `/` | home |
+| `/businesses` | directory and search (`q`, `community`, `category`) |
+| `/categories/[category]` | category page ("Plumbers") |
+| `/communities/[community]` | community page ("Thayne") |
+| `/categories/[category]/[community]` | category x community ("Plumbers in Thayne") |
+| `/business/[slug]` | business profile |
+| `/events`, `/events/[slug]` | events |
+| `/deals`, `/things-to-do` | deals, weekend guide |
+| `/articles`, `/articles/[slug]` | articles |
+| `/list-your-business` | claim / suggest a business |
+
+The home page already links to these. Only `/` exists so far; the rest 404 until their slices.
+
+### Slice 2 status
+
+Done: tenant resolution (host to tenant), tenant theme, header/footer, **home page**. Not yet: directory search,
+category/community pages, business profile, events, deals, articles, sitemap.
+
+How the public site reads data: `src/lib/directory/queries.ts` lists every table and column it reads, flat
+selects only (no relationship embedding). A test runs each one **as the anonymous database role** against a
+seeded database, so a permission gap fails the test instead of failing in production. The Supabase API layer
+itself (PostgREST) could not be run in the build environment, so the first run against a real project is still
+outstanding (see §5).
+
 ## 3. RLS policy matrix
 
 Model: public rows are readable by anyone; everything private is gated by **staff role** or **business

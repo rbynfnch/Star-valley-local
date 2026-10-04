@@ -22,6 +22,17 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run lint` | ESLint |
 | `npm run build` | production build |
 | `npm run tokens` | regenerates `src/styles/tokens.generated.css` from `src/styles/tokens.ts` |
+| `npm run fixtures` | dev only: exports what the anonymous role can read from a seeded local DB to `.fixtures/` |
+| `npm run smoke` | end-to-end check of the rendered home page (needs `npm run dev`; rules from CLAUDE.md, accessibility, JSON-LD) |
+
+### Running without a Supabase project (development only)
+```bash
+supabase/tests/seed_check.sh                 # builds a seeded local database named svl_seed
+npm run fixtures                             # snapshot of what the anonymous role can read
+echo "SVL_DATA_SOURCE=fixtures" >> .env.local && npm run dev    # http://star-valley.localhost:3000
+```
+The snapshot is exported **as the anonymous database role**, so the page shows only what the public could see.
+Fixtures mode refuses to run in production.
 
 ## Database
 `supabase/` holds the migrations, seed and SQL tests.

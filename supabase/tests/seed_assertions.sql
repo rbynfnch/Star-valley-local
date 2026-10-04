@@ -63,3 +63,7 @@ select test.as_root();
 select test.ok(not exists (select 1 from public.business_field_sources where source <> 'import'), 'seeded fields are recorded as import');
 select test.ok((select count(*) from public.tenant_products) = 3, 'three products: Enhanced monthly/yearly, Featured monthly');
 select test.ok((select amount_cents from public.tenant_products where code = 'enhanced_yearly') = 19900, 'Enhanced yearly is $199');
+
+-- event wall-clock times are stored as the TENANT's local time (Denver), not UTC
+select test.ok((select bool_and(extract(hour from starts_at at time zone 'America/Denver') between 7 and 20) from public.community_events), 'seeded events start between 7:00 and 20:59 local time');
+select test.ok((select extract(hour from starts_at at time zone 'America/Denver') = 8 from public.community_events where slug = 'sample-farmers-market'), 'the farmers market starts at 8:00 local');
