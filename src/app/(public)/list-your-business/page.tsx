@@ -22,6 +22,7 @@ export default async function ListYourBusiness({ searchParams }: PageProps<"/lis
         <h1 className="font-heading text-3xl font-semibold text-text">Claim your business</h1>
         <p className="mt-3 text-text-body">Most local businesses are already listed. Find yours, then choose &ldquo;Claim this business&rdquo; on its page to verify that it&apos;s yours and keep your information accurate.</p>
         <p className="mt-6"><Link href="/businesses" className="font-semibold text-link underline">Find your business</Link></p>
+        <p className="mt-3 text-text-body">Cannot find it? <Link href="/suggest-business" className="font-semibold text-link underline">Suggest a business</Link>.</p>
       </main>
     );
   }

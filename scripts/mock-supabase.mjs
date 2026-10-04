@@ -26,6 +26,9 @@ export const state = {
   claimStartError: null,   // { status, body } to make claim_start fail
   smsFail: false,
   signups: [],
+  submissions: [],    // submission_create arguments
+  modRows: [],        // moderation queue rows (see freshModRows)
+  duplicateFor: [],   // submission ids whose business approval reports a duplicate until forced
   autoConfirm: false,
 };
 export const freshDetail = () => ({
@@ -44,6 +47,14 @@ export const freshDetail = () => ({
   indicators: { has_website: true, has_social: false, has_google_profile: false },
 });
 
+export const SUB_IDS = { update: '11111111-1111-4111-8111-111111111111', business: '22222222-2222-4222-8222-222222222222', event: '33333333-3333-4333-8333-333333333333', xss: '44444444-4444-4444-8444-444444444444' };
+export const freshModRows = () => [
+  { id: SUB_IDS.update, kind: 'update', status: 'pending', payload: { fields: { phone: '307-555-0188', website: 'https://new.example', hours: 'Mon-Fri 8-5' }, note: 'We moved', closed: true }, submitter_name: 'Pat', submitter_email: 'pat@example.com', submitter_phone: null, created_at: '2026-10-01T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: BIZ, business_name: 'Alpha Plumbing', business_slug: 'alpha-plumbing' },
+  { id: SUB_IDS.business, kind: 'business', status: 'pending', payload: { name: 'Sourdough Corner', category_text: 'Bakery', phone: '307-555-0801', website: 'https://sourdough.example', description: 'Fresh bread' }, submitter_name: 'Robin', submitter_email: 'robin@example.com', submitter_phone: '307-555-0802', created_at: '2026-10-02T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
+  { id: SUB_IDS.event, kind: 'event', status: 'pending', payload: { title: 'Autumn Fair', description: 'Pies', starts_at: '2026-10-18T00:30:00Z', ends_at: '2026-10-18T03:00:00Z', venue_name: 'Town Park', organizer: 'Fair Committee' }, submitter_name: null, submitter_email: 'sam@example.com', submitter_phone: null, created_at: '2026-10-03T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
+  { id: SUB_IDS.xss, kind: 'business', status: 'pending', payload: { name: '<img src=x onerror=alert(1)>', note: '<script>alert(2)</script>' }, submitter_name: '<b>Eve</b>', submitter_email: 'eve@example.com', submitter_phone: null, created_at: '2026-10-04T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
+];
+
 export function startMock() {
   const server = http.createServer((req, res) => {
     const tok = (req.headers.authorization ?? '').replace('Bearer ', '');
@@ -52,7 +63,7 @@ export function startMock() {
       const json = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
       const rpc = /^\/rest\/v1\/rpc\/([a-z_]+)/.exec(req.url)?.[1];
       let args = {}; try { args = JSON.parse(body || '{}'); } catch { /* not json */ }
-      if (rpc) { state.rpc.push({ name: rpc, body: args }); const f = state.failNext;
+      if (rpc) { state.rpc.push({ name: rpc, body: args, key: tok }); const f = state.failNext;
         if (f && (f === rpc || f.rpc === rpc)) { state.failNext = null; return typeof f === 'string' ? json(500, { message: 'boom' }) : json(f.status ?? 400, f.body ?? { message: 'boom' }); } }
       if (req.url.startsWith('/auth/v1/token')) {
         const a = JSON.parse(body || '{}'); const ok = PASSWORDS[a.email] && PASSWORDS[a.email] === a.password;
@@ -70,6 +81,24 @@ export function startMock() {
         return state.smsFail ? json(400, { message: 'Invalid To number +13075550111 token secret' }) : json(201, { sid: 'SM1' });
       }
       if (req.method === 'PATCH' && req.url.startsWith('/rest/v1/claims')) { const id = /id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1]; if (id) state.claimCancels.push(id); return json(204, null); }
+      if (rpc === 'submission_create') { state.rpc.at(-1).key = tok; state.submissions.push(args); return json(200, 'sub-' + state.submissions.length); }
+      if (rpc === 'admin_list_submissions') {
+        if (!u?.role) return json(403, { code: '42501', message: 'moderators only' });
+        const rows = state.modRows.filter((r) => r.status === (args.p_status ?? 'pending') && (!args.p_kind || r.kind === args.p_kind));
+        const by = {}; for (const r of state.modRows) if (r.status === 'pending') by[r.kind] = (by[r.kind] ?? 0) + 1;
+        return json(200, { total: rows.length, pending_by_kind: by, rows });
+      }
+      if (rpc === 'review_submission') {
+        if (!u?.role) return json(403, { code: '42501', message: 'moderators only' });
+        const row = state.modRows.find((r) => r.id === args.p_id);
+        if (!row || row.status !== 'pending') return json(400, { code: '22023', message: 'this submission was already reviewed' });
+        if (args.p_action === 'approve' && row.kind === 'business' && state.duplicateFor.includes(row.id) && !args.p_force) return json(200, { result: 'duplicate', business_id: BIZ, business_name: 'Alpha Plumbing', reason: 'phone' });
+        row.status = args.p_action === 'approve' ? 'approved' : args.p_action === 'reject' ? 'rejected' : 'spam'; row.reviewed_at = new Date().toISOString(); row.resolution_notes = args.p_notes;
+        if (args.p_action !== 'approve') return json(200, { result: row.status });
+        if (row.kind === 'business') return json(200, { result: 'approved', business_id: BIZ });
+        if (row.kind === 'event') return json(200, { result: 'approved', event_id: 'ev1', slug: 'autumn-fair' });
+        return json(200, args.p_apply ? { result: 'approved', applied: Object.keys(row.payload.fields ?? {}).filter((k) => k !== 'hours').sort() } : { result: 'approved' });
+      }
       if (rpc === 'claim_start') {
         state.rpc.at(-1).key = tok;
         if (state.claimStartError) return json(state.claimStartError.status, state.claimStartError.body);
@@ -85,7 +114,7 @@ export function startMock() {
       }
       if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }) : json(401, { msg: 'invalid' });
       if (rpc === 'my_staff_role') return json(200, u?.role ?? null);
-      if (rpc === 'admin_dashboard_counts') return !u?.role ? json(403, { code: '42501', message: 'staff only' }) : json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11 });
+      if (rpc === 'admin_dashboard_counts') return !u?.role ? json(403, { code: '42501', message: 'staff only' }) : json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11, pending_submissions: 4 });
       const salesOnly = !u?.role || u.role === 'editor';
       if (rpc === 'admin_list_businesses') { if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' }); state.lastList = args; return json(200, { total: state.listRows.length === 0 ? 0 : 60, rows: state.listRows }); }
       if (rpc === 'admin_business_detail') { if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' }); return json(200, state.detail); }

@@ -19,6 +19,8 @@ export function Footer({ tenantName, tagline }: { tenantName: string; tagline: s
           <h2 className="mb-3 font-sans text-sm font-semibold uppercase tracking-wide text-text-on-inverse">For businesses</h2>
           <ul className="space-y-2">
             <li><Link href="/list-your-business" className="text-text-on-inverse underline-offset-4 hover:underline">List Your Business</Link></li>
+            <li><Link href="/suggest-business" className="text-text-on-inverse underline-offset-4 hover:underline">Suggest a business</Link></li>
+            <li><Link href="/submit-event" className="text-text-on-inverse underline-offset-4 hover:underline">Submit an event</Link></li>
           </ul>
         </nav>
       </div>

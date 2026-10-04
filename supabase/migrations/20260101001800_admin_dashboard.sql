@@ -6,6 +6,7 @@
 --   enhanced            published businesses with a live Enhanced listing (active, inside its dates)
 --   featured            published businesses with a live placement (active, inside its dates)
 --   needing_verification published businesses that are unverified, or whose verification is due within 14 days
+--   pending_submissions  Suggest an Update / Suggest a Business / Submit an Event waiting for moderation
 create function public.admin_dashboard_counts(p_tenant uuid) returns jsonb
 language plpgsql stable security invoker set search_path = public as $$
 begin
@@ -23,7 +24,8 @@ begin
                         and l.starts_at <= now() and (l.ends_at is null or l.ends_at > now())),
       'featured',   (select count(distinct p.business_id) from public.placements p join pub on pub.id = p.business_id
                       where p.tenant_id = p_tenant and p.status = 'active' and p.start_at <= now() and p.end_at > now()),
-      'needing_verification', (select count(*) from pub where verification_level = 'none' or reverify_due_at < now() + interval '14 days')
+      'needing_verification', (select count(*) from pub where verification_level = 'none' or reverify_due_at < now() + interval '14 days'),
+      'pending_submissions', (select count(*) from public.submissions where tenant_id = p_tenant and status = 'pending')
     ));
 end $$;
 revoke all on function public.admin_dashboard_counts(uuid) from public, anon;

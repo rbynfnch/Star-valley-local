@@ -20,7 +20,9 @@
     "smoke:profile": "node scripts/smoke-profile.mjs",
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "e2e:admin": "node scripts/e2e-admin-forms.mjs",
-    "e2e:claim": "node scripts/e2e-claim.mjs"
+    "e2e:claim": "node scripts/e2e-claim.mjs",
+    "e2e:submissions": "node scripts/e2e-submissions.mjs",
+    "e2e:moderation": "node scripts/e2e-moderation.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

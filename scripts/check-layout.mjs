@@ -17,6 +17,7 @@ const ADMIN_PAGES = [
   { path: '/admin/businesses', visible: [{ sel: 'h1', min: 0 }, { sel: '#q', min: 0 }, { sel: 'ul.space-y-3 li', min: 0, hiddenAt: 768 }, { sel: 'table', min: 768 }, { sel: 'button[type="submit"]', min: 0 }] },
   { path: '/admin/businesses/3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', visible: [{ sel: 'h1', min: 0 }, { sel: '#stage', min: 0 }, { sel: '#body', min: 0 }, { sel: 'dl', min: 0 }, { sel: 'ol', min: 0 }] },
   { path: '/admin/businesses/3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b/edit', visible: [{ sel: 'h1', min: 0 }, { sel: '#name', min: 0 }, { sel: '#description', min: 0 }, { sel: 'button[type="submit"]', min: 0 }] },
+  { path: '/admin/moderation', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Status"]', min: 0 }, { sel: 'main ul > li', min: 0 }, { sel: 'button', min: 0 }] },
   { path: '/admin/businesses?tier=free&page=2', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Pagination"]', min: 0 }] },
 ];
 const PUBLIC_PAGES = [
@@ -30,6 +31,11 @@ const PUBLIC_PAGES = [
     { sel: 'input[name="community"]', min: 1024 }, { sel: 'input[name="verified"]', min: 1024 },
     { sel: 'aside summary', min: 0, hiddenAt: 1024 },
   ] },
+  { path: '/suggest-business', visible: [{ sel: 'h1', min: 0 }, { sel: '#name', min: 0 }, { sel: '#your_email', min: 0 }, { sel: 'button[type="submit"]', min: 0 }] },
+  { path: '/submit-event', visible: [{ sel: 'h1', min: 0 }, { sel: '#title', min: 0 }, { sel: '#start_date', min: 0 }, { sel: '#start_time', min: 0 }, { sel: 'button[type="submit"]', min: 0 }] },
+  { path: '/suggest-update?business=sample-valley-plumbing', visible: [{ sel: 'h1', min: 0 }, { sel: '#phone', min: 0 }, { sel: '#note', min: 0 }, { sel: 'button[type="submit"]', min: 0 }] },
+  { path: '/account/sign-in', visible: [{ sel: 'h1', min: 0 }, { sel: '#email', min: 0 }, { sel: '#password', min: 0 }] },
+  { path: '/list-your-business?claim=sample-smile-dental', visible: [{ sel: 'h1', min: 0 }, { sel: 'main a', min: 0 }] },
   { path: '/business/sample-valley-plumbing', visible: [{ sel: 'h1', min: 0 }, { sel: '#services', min: 0 }, { sel: '#photos', min: 0 }, { sel: '#faqs', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }] },
   { path: '/business/sample-creekside-cafe', visible: [{ sel: 'h1', min: 0 }, { sel: '#about', min: 0 }] },
 ];
@@ -56,12 +62,18 @@ for (const pg of PAGES) for (const w of WIDTHS) { const f=document.createElement
   document.body.appendChild(f); n++; }
 </script>`;
 
+// Warm every page first (a cold dev server compiles each route on its first request; doing that inside the browser run
+// would eat its time budget and make the check flaky).
+for (const pg of PAGES) {
+  try { await fetch(`http://localhost:${port}${pg.path}`, { redirect: 'manual', headers: { host: `${host}:${port}`, ...(ADMIN_COOKIE ? { cookie: ADMIN_COOKIE } : {}) } }); } catch { /* the check below reports it */ }
+}
+
 mkdirSync('public', { recursive: true });
 const file = join('public', '_layout-check.html');
 writeFileSync(file, frame);
 let html = '';
 try {
-  html = execFileSync(findChrome(), ['--headless', '--no-sandbox', '--disable-gpu', '--virtual-time-budget=60000', '--dump-dom', `http://${host}:${port}/_layout-check.html`], { encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'ignore'] });
+  html = execFileSync(findChrome(), ['--headless', '--no-sandbox', '--disable-gpu', '--virtual-time-budget=120000', '--dump-dom', `http://${host}:${port}/_layout-check.html`], { encoding: 'utf8', timeout: 400000, stdio: ['ignore', 'pipe', 'ignore'] });
 } finally { rmSync(file, { force: true }); }
 
 const m = /RESULT(\[.*\])/.exec(html.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));

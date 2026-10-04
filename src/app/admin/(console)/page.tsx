@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { requireStaff } from "@/lib/admin/session";
 import { createUserClient } from "@/lib/supabase/server";
 
-const TILES: { key: string; label: string; hint: string }[] = [
+const TILES: { key: string; label: string; hint: string; href?: string }[] = [
+  { key: "pending_submissions", label: "Waiting for review", hint: "suggestions and events", href: "/admin/moderation" },
   { key: "total", label: "Businesses", hint: "not archived" },
   { key: "prospects", label: "Prospects", hint: "hidden until published" },
   { key: "verified", label: "Verified", hint: "Green or Gold, published" },
@@ -22,7 +24,7 @@ export default async function Dashboard() {
       <dl className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
         {TILES.map((t) => (
           <div key={t.key} className="rounded-card bg-surface-card p-4 shadow-card">
-            <dt className="text-sm font-medium text-text-muted">{t.label}</dt>
+            <dt className="text-sm font-medium text-text-muted">{t.href ? <Link href={t.href} className="text-link underline">{t.label}</Link> : t.label}</dt>
             <dd className="mt-1 font-heading text-3xl font-semibold text-text">{Number.isFinite(counts[t.key]) ? counts[t.key] : "–"}</dd>
             <dd className="text-xs text-text-subtle">{t.hint}</dd>
           </div>

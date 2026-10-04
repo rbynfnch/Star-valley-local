@@ -48,6 +48,17 @@ select test.as_user(test.id('salesA'));
 select test.ok(test.dcn('enhanced') = (select (c->>'enhanced')::bigint from b0), 'D12: an expired-by-date listing is not Enhanced');
 select test.as_root();
 
+-- pending submissions
+select test.as_root();
+insert into public.submissions (tenant_id, kind, payload) values (test.id('tenantA'), 'business', '{"name":"Dash Sub"}');
+select test.as_user(test.id('salesA'));
+select test.ok(test.dcn('pending_submissions') = (select (c->>'pending_submissions')::bigint from b0) + 1, 'D11b: a pending submission is counted');
+select test.as_root();
+update public.submissions set status = 'rejected' where payload->>'name' = 'Dash Sub';
+select test.as_user(test.id('salesA'));
+select test.ok(test.dcn('pending_submissions') = (select (c->>'pending_submissions')::bigint from b0), 'D11c: a reviewed one no longer counts');
+select test.as_root();
+
 -- access: sales, editor and admin yes; owner, consumer, anon, other-tenant staff no
 select test.as_user(test.id('editorA')); select test.ok(test.dcn('total') > 0, 'D13: editor may read the counts');
 select test.as_user(test.id('adminA'));  select test.ok(test.dcn('total') > 0, 'D14: admin may read the counts');

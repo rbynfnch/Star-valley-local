@@ -78,6 +78,7 @@ Notes:
 | `…2000_admin_business_detail` | `admin_business_detail()` (one document: fields + per-field provenance, CRM, listing, placements, proofs without their evidence, contacts, opportunities, communications, marketing indicators), `set_lead_stage()` (upsert + audit note) and `add_communication()` (staff id is always the caller). Sales and admin only |
 | `…2100_admin_edit_status` | `update_business_fields()` (whitelisted keys, only present keys change, `''` clears, validated; staff writes are recorded as `admin` provenance so imports never overwrite them) and `set_business_status()` (publish prospect → unclaimed/claimed, archive, restore; archive refused while a paid listing or placement is live; every change logged) |
 | `…2200_claim_flow` | `claim_start()` / `claim_verify()` (service role only): texts or emails a one-time secret, stores only its hash, enforces the limits, and on success links the owner and records the proof (Green is derived by the existing triggers). `app.expire_claims()` for the daily job |
+| `…2300_submissions` | `submission_create()` (service role only: strict per-kind whitelist, caps, always `pending`), `review_submission()` (approve / reject / spam; approving creates a hidden prospect, publishes an event, or applies suggested field changes) and `admin_list_submissions()` (the queue) |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -385,3 +386,14 @@ columns and the Premium tier.
 - **Before this works in production:** a Twilio account with a sender registered for **US A2P 10DLC** (carriers block unregistered business texting), `TWILIO_FROM_NUMBER`, Turnstile keys, and `SUPABASE_SERVICE_ROLE_KEY` as a server-only secret. Schedule `app.expire_claims()` with the other daily jobs.
 - **Not verified against real services:** Twilio and Supabase Auth were exercised only through mocks; Turnstile's server check is unit-tested but not exercised by the browser test (it needs a real secret).
 - **Not built:** admin claim tools (send a claim text on someone's behalf, postcard code batches for Gold), the email-link UI, owner dashboard, transferring or disputing a claim.
+
+## Suggest an Update / Suggest a Business / Submit an Event (slice 4, part 2)
+- **Public pages:** `/suggest-update?business=<slug>` (linked from every profile), `/suggest-business`, `/submit-event` (both linked from the footer and `/list-your-business`). Cloudflare Turnstile on each; the server action calls the service-role-only `submission_create`, so no browser role can insert a submission.
+- **Nothing is published or changed by a visitor.** Every submission is a `pending` row. Rules in the database: unknown fields are refused; text is trimmed and length-capped; websites must be http(s); events must start within the next two years and not end before they start; at most 200 submissions per tenant per day, 5 per email per day, 10 pending updates per business. A suggested business and an event require an email (so we can follow up); an update does not.
+- **Moderation** (`/admin/moderation`, sales + editors + admin; dashboard shows "Waiting for review"): approve, reject or mark spam with a note. Approving
+  - an **update** marks it approved, and, if sales/admin tick "apply", writes phone / website / name / address / city to the business as a staff edit (hours are free text and never applied automatically);
+  - a **business** creates a **hidden prospect** (never public until published), after a duplicate check that offers "Add it anyway"; the CRM log keeps who suggested it;
+  - an **event** publishes it (editors and admin only; sales cannot).
+- **Decision recorded:** the prospect for a suggested business is created at approval, not on submission, so spam never reaches the CRM.
+- **Not built:** claim requests as a moderation type (claims are automatic today), emailing the submitter a decision, merging a duplicate into the existing business, editing a submission before approving, structured hours from an update.
+- **Not verified against real services:** Supabase and Turnstile through mocks only.
