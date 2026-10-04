@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { psqlJson } from "./psql.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, ProfileRaw, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
 // (`npm run fixtures`), so it shows exactly what the public could read. Never used in production (data.ts refuses).
@@ -54,6 +54,13 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
       return psqlJson<ProfileRaw | null>("select public.business_profile(:'tenant'::uuid, :'slug')::text::jsonb", { tenant: id, slug });
     },
     async businessSlugs(id) { return s.businesses.filter((b) => b.tenant_id === id).map((b) => b.slug).sort(); },
+    async products(id): Promise<Product[]> {
+      const rows = psqlJson<Product[]>("select coalesce(jsonb_agg(t order by t.amount_cents), '[]'::jsonb) from (select code, name, kind, tier, slot_type, interval, amount_cents, payment_link_url from public.tenant_products where tenant_id = :'tenant'::uuid and is_active) t", { tenant: id });
+      return rows.map((r) => ({ ...r, amount_cents: Number(r.amount_cents) }));
+    },
+    async scarcity(id): Promise<Scarcity> {
+      return psqlJson<Scarcity>("select public.placement_scarcity(:'tenant'::uuid)::text::jsonb", { tenant: id });
+    },
     async counts(id): Promise<CountRow[]> {
       const rows = psqlJson<CountRow[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.directory_counts(:'tenant'::uuid) t", { tenant: id });
       return rows.map((x) => ({ ...x, n: Number(x.n) }));

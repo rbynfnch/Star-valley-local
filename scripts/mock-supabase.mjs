@@ -10,6 +10,7 @@ export const USERS = {
   'tok-editor': { id: 'u-editor', email: 'editor@example.test', role: 'editor' },
   'tok-rando': { id: 'u-rando', email: 'rando@example.test', role: null },
   'tok-owner': { id: 'u-owner', email: 'owner@example.test', role: null },
+  'tok-admin': { id: 'u-admin', email: 'admin@example.test', role: 'admin' },
 };
 export const PASSWORDS = { 'owner@example.test': 'correct-horse-battery' };
 export const SERVICE_KEY = 'service-secret';
@@ -29,6 +30,10 @@ export const state = {
   submissions: [],    // submission_create arguments
   modRows: [],        // moderation queue rows (see freshModRows)
   existingBusinesses: [],   // rows returned for the planner's duplicate lookup
+  overview: null,           // admin_placements_overview result (see freshOverview)
+  owned: new Set(),         // business ids the signed-in owner owns (business_owners lookup)
+  placementResult: null,    // override for activate_placement, e.g. { result: 'full' }
+  joinError: null,          // { status, body } for join_waitlist
   imported: [],             // import_businesses row arrays received
   duplicateFor: [],   // submission ids whose business approval reports a duplicate until forced
   autoConfirm: false,
@@ -55,6 +60,23 @@ export const freshModRows = () => [
   { id: SUB_IDS.business, kind: 'business', status: 'pending', payload: { name: 'Sourdough Corner', category_text: 'Bakery', phone: '307-555-0801', website: 'https://sourdough.example', description: 'Fresh bread' }, submitter_name: 'Robin', submitter_email: 'robin@example.com', submitter_phone: '307-555-0802', created_at: '2026-10-02T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
   { id: SUB_IDS.event, kind: 'event', status: 'pending', payload: { title: 'Autumn Fair', description: 'Pies', starts_at: '2026-10-18T00:30:00Z', ends_at: '2026-10-18T03:00:00Z', venue_name: 'Town Park', organizer: 'Fair Committee' }, submitter_name: null, submitter_email: 'sam@example.com', submitter_phone: null, created_at: '2026-10-03T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
   { id: SUB_IDS.xss, kind: 'business', status: 'pending', payload: { name: '<img src=x onerror=alert(1)>', note: '<script>alert(2)</script>' }, submitter_name: '<b>Eve</b>', submitter_email: 'eve@example.com', submitter_phone: null, created_at: '2026-10-04T15:00:00Z', reviewed_at: null, resolution_notes: null, business_id: null, business_name: null, business_slug: null },
+];
+
+export const IDS = { home: 'a0000000-0000-4000-8000-000000000001', w1: 'b0000000-0000-4000-8000-000000000001', w2: 'b0000000-0000-4000-8000-000000000002', live: 'a0000000-0000-4000-8000-000000000099' };
+export const freshOverview = () => ({
+  slots: [
+    { slot_type: 'homepage', scope_id: null, scope_name: null, max_slots: 6, used: 1, holders: [{ id: IDS.home, business_id: BIZ, business_name: 'Alpha Plumbing', source: 'paid', start_at: '2026-09-01T15:00:00Z', end_at: '2026-10-12T15:00:00Z', auto_renews: false, upcoming: false }], waitlist: [] },
+    { slot_type: 'things_to_do', scope_id: null, scope_name: null, max_slots: 6, used: 0, holders: [], waitlist: [] },
+    { slot_type: 'category', scope_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', scope_name: 'Plumbing', max_slots: 3, used: 3,
+      holders: ['One', 'Two', 'Three'].map((n, i) => ({ id: `a0000000-0000-4000-8000-00000000001${i}`, business_id: BIZ, business_name: `Plumber ${n}`, source: i === 1 ? 'founding_member' : 'paid', start_at: '2026-08-01T15:00:00Z', end_at: '2027-02-01T15:00:00Z', auto_renews: i === 0, upcoming: false })),
+      waitlist: [{ id: IDS.w1, business_id: BIZ, business_name: 'Waiting Plumber', since: '2026-09-20T15:00:00Z', eligible: true }, { id: IDS.w2, business_id: BIZ, business_name: 'Not Ready Plumber', since: '2026-09-25T15:00:00Z', eligible: false }] },
+  ],
+  listings: [{ id: 'l-1', business_id: BIZ, business_name: 'Alpha Plumbing', source: 'paid', ends_at: '2026-10-20T15:00:00Z', auto_renews: false }, { id: 'l-2', business_id: BIZ, business_name: 'Founding Cafe', source: 'founding_member', ends_at: null, auto_renews: false }],
+});
+export const PRODUCTS = [
+  { code: 'enhanced_monthly', name: 'Enhanced (monthly)', kind: 'listing', interval: 'month', amount_cents: 1900 },
+  { code: 'enhanced_yearly', name: 'Enhanced (yearly)', kind: 'listing', interval: 'year', amount_cents: 19900 },
+  { code: 'featured_monthly', name: 'Featured placement (monthly)', kind: 'placement', interval: 'month', amount_cents: 4900 },
 ];
 
 export function startMock() {
@@ -101,6 +123,19 @@ export function startMock() {
         if (row.kind === 'event') return json(200, { result: 'approved', event_id: 'ev1', slug: 'autumn-fair' });
         return json(200, args.p_apply ? { result: 'approved', applied: Object.keys(row.payload.fields ?? {}).filter((k) => k !== 'hours').sort() } : { result: 'approved' });
       }
+      const adminOnly = ['activate_listing', 'end_listing', 'activate_placement', 'end_placement', 'add_to_waitlist'];
+      if (adminOnly.includes(rpc)) {
+        if (u?.role !== 'admin') return json(403, { code: '42501', message: 'only admins can change a placement' });
+        if (rpc === 'activate_placement') return json(200, state.placementResult ?? { result: 'active', placement_id: 'pl-1' });
+        if (rpc === 'activate_listing') return json(200, { listing_id: 'li-1', extended: !!args.p_notes?.includes('extend') });
+        if (rpc === 'end_listing') return json(200, { ended_paid_placements: Number(state.endedPaid ?? 1) });
+        if (rpc === 'end_placement') return json(200, { result: 'ended now' });
+        return json(200, { id: 'wl-new', already: false });
+      }
+      if (rpc === 'admin_placements_overview') { if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' }); return json(200, state.overview); }
+      if (rpc === 'join_waitlist') { if (state.joinError) return json(state.joinError.status, state.joinError.body); return json(200, { id: 'wl-owner', position: 2 }); }
+      if (req.method === 'GET' && req.url.startsWith('/rest/v1/tenant_products')) return json(200, PRODUCTS);
+      if (req.method === 'GET' && req.url.startsWith('/rest/v1/business_owners')) { const id = /business_id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1]; return json(200, id && state.owned.has(id) && u ? [{ business_id: id }] : []); }
       if (rpc === 'claim_start') {
         state.rpc.at(-1).key = tok;
         if (state.claimStartError) return json(state.claimStartError.status, state.claimStartError.body);

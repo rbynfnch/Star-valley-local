@@ -8,6 +8,7 @@ export const PUBLIC_READS = {
   communities: ["id", "tenant_id", "slug", "name", "state", "sort_order", "is_active"],
   community_events: ["id", "tenant_id", "slug", "title", "starts_at", "ends_at", "all_day", "community_id", "category_id",
     "venue_name", "rrule", "recurrence_until", "exdates", "status"],
+  tenant_products: ["tenant_id", "code", "name", "kind", "tier", "slot_type", "interval", "amount_cents", "payment_link_url", "is_active"],
   public_placements: ["tenant_id", "business_id", "slot_type", "category_id", "community_id"],
   businesses: ["id", "tenant_id", "slug", "name", "short_description", "home_community_id", "primary_category_id", "phone",
     "website", "address_line1", "city", "state", "postal_code", "verification_level", "status"],
@@ -15,6 +16,6 @@ export const PUBLIC_READS = {
 
 // RPC functions the public site calls (anon must be allowed to EXECUTE each; checked by anon-access.test.ts).
 // Each entry: the SQL arguments to call it with, where $T is a tenant id.
-export const PUBLIC_RPC = { search_businesses: "$T, null", directory_counts: "$T", business_profile: "$T, 'x'" } as const satisfies Record<string, string>;
+export const PUBLIC_RPC = { search_businesses: "$T, null", directory_counts: "$T", business_profile: "$T, 'x'", placement_scarcity: "$T" } as const satisfies Record<string, string>;
 
 export const cols = (t: keyof typeof PUBLIC_READS): string => PUBLIC_READS[t].join(",");

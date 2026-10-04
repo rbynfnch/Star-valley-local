@@ -29,6 +29,12 @@ export type SearchRow = BusinessRow & { price_range: number | null; live_placeme
 export type SearchResult = { rows: SearchRow[]; total: number };
 
 /** public.business_profile(): what the profile page shows. Free-vs-Enhanced gating already happened in the database. */
+/** A purchasable product (Enhanced listing, Featured placement). Read by anyone: it is what the pricing page shows. */
+export type Product = { code: string; name: string; kind: "listing" | "placement"; tier: "free" | "enhanced" | null; slot_type: "homepage" | "category" | "community" | "things_to_do" | null; interval: "month" | "year" | null; amount_cents: number; payment_link_url: string | null };
+/** public.placement_scarcity(): live inventory, aggregates only. */
+export type ScarcityScope = { id: string; slug: string; name: string; max: number; used: number };
+export type Scarcity = { homepage: { max: number; used: number }; things_to_do: { max: number; used: number }; categories: ScarcityScope[]; communities: ScarcityScope[] };
+
 export type ProfileRaw = {
   tier: "free" | "enhanced";
   business: {
@@ -69,6 +75,10 @@ export interface DirectoryData {
   businessProfile(tenantId: string, slug: string): Promise<ProfileRaw | null>;
   /** Slugs of every public business (for the sitemap). */
   businessSlugs(tenantId: string): Promise<string[]>;
+  /** Active products with their prices and Stripe Payment Link URLs (cheapest first within each kind). */
+  products(tenantId: string): Promise<Product[]>;
+  /** Live Featured inventory per slot and scope: "2 of 3 plumbing spots remaining". */
+  scarcity(tenantId: string): Promise<Scarcity>;
   /** Businesses per category x community (see CountRow); drives which SEO hub pages exist. */
   counts(tenantId: string): Promise<CountRow[]>;
   /** Business ids with a LIVE placement in `slot` whose scope is one of `scopeIds` (category or community ids). */

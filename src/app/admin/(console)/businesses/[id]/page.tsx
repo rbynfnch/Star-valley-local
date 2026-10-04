@@ -9,6 +9,8 @@ import { formatDay, formatStamp, label } from "@/lib/admin/format";
 import { telHref } from "@/lib/format";
 import { EntryForm, StageForm } from "./Forms";
 import { StatusForm } from "./StatusForm";
+import { ActivateListingForm, ActivatePlacementForm, EndButton, type Product } from "@/components/admin/BillingForms";
+import { activateListing, activatePlacement, addToWaitlist, endListing, endPlacement } from "../../placements/actions";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -43,6 +45,11 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
   if (error) throw new Error("Could not load this business.");
   if (!data) notFound();
   const d = data as Detail;
+  const [cats, coms, prods] = staff.role === "admin" ? await Promise.all([
+    supabase.from("categories").select("id,name").eq("tenant_id", staff.tenant.id).eq("is_active", true).order("sort_order"),
+    supabase.from("communities").select("id,name").eq("tenant_id", staff.tenant.id).order("sort_order"),
+    supabase.from("tenant_products").select("code,name,kind,interval,amount_cents").eq("tenant_id", staff.tenant.id).eq("is_active", true).order("amount_cents"),
+  ]) : [null, null, null];
   const b = d.business;
   const tz = staff.tenant.timezone;
   const src = new Map(d.provenance.map((p) => [p.field, p]));
@@ -123,6 +130,26 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
           <Card title="Placements">
             {d.placements.length === 0 ? <Empty>None.</Empty> : (
               <ul className="space-y-2">{d.placements.map((p) => <li key={p.id}><span className="font-medium text-text">{label(p.slot_type)}{p.scope ? ` · ${p.scope}` : ""}</span><br /><span className="text-text-body">{label(p.status)} · {label(p.source)} · {formatDay(p.start_at, tz)} to {formatDay(p.end_at, tz)}</span></li>)}</ul>
+            )}
+          </Card>
+          <Card title="Plan and placements">
+            {staff.role !== "admin" ? <p className="text-text-muted">Only admins can activate or end plans and placements.</p> : !published ? <p className="text-text-muted">Publish this business first. Only public businesses can have a paid plan.</p> : (
+              <div className="space-y-5">
+                <section aria-labelledby="enh-h"><h3 id="enh-h" className="font-semibold text-text">Enhanced listing</h3>
+                  <p className="mb-2 text-text-body">{d.listing && d.listing.status === "active" ? `Active${d.listing.ends_at ? `, ends ${formatDay(d.listing.ends_at, tz)}` : ", no end date"}.` : "Not active."}</p>
+                  <ActivateListingForm action={activateListing} business={b.id} products={(prods?.data ?? []) as Product[]} running={!!d.listing && d.listing.status === "active"} />
+                  {d.listing && d.listing.status === "active" && <div className="mt-2"><EndButton action={endListing} fields={{ business: b.id }} label="End Enhanced now" confirmLabel="End the Enhanced listing" /></div>}
+                </section>
+                <section aria-labelledby="feat-h" className="border-t border-slate-600/20 pt-4"><h3 id="feat-h" className="font-semibold text-text">Featured placement</h3>
+                  <p className="mb-2 text-text-body">Needs a verified business{" "}{b.verification_level === "none" ? "(not verified yet)" : "(verified)"}; paid placements also need an active Enhanced listing.</p>
+                  <ActivatePlacementForm action={activatePlacement} waitlistAction={addToWaitlist} business={b.id} products={(prods?.data ?? []) as Product[]} categories={cats?.data ?? []} communities={coms?.data ?? []} />
+                </section>
+                {d.placements.filter((p) => p.status === "active" && new Date(p.end_at) > new Date()).length > 0 && (
+                  <section aria-labelledby="cur-h" className="border-t border-slate-600/20 pt-4"><h3 id="cur-h" className="font-semibold text-text">Current Featured spots</h3>
+                    <ul className="mt-2 space-y-2">{d.placements.filter((p) => p.status === "active" && new Date(p.end_at) > new Date()).map((p) => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-text-body">{label(p.slot_type)}{p.scope ? ` · ${p.scope}` : ""} · ends {formatDay(p.end_at, tz)}</span><EndButton action={endPlacement} fields={{ id: p.id, business: b.id }} label="End now" confirmLabel="End this placement" /></li>)}</ul>
+                  </section>
+                )}
+              </div>
             )}
           </Card>
           <Card title="Marketing opportunities">

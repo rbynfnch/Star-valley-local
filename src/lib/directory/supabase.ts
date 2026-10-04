@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cols } from "./queries.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, ProfileRaw, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // Production implementation: the anonymous (public) key only. Flat selects, no relationship embedding, so every
 // query maps 1:1 to a table/columns the anon role can read (verified by anon-access.test.ts).
@@ -65,6 +65,15 @@ export function supabaseDirectory(url = process.env.NEXT_PUBLIC_SUPABASE_URL, ke
         if (rows.length < 1000) break;
       }
       return out;
+    },
+    async products(tenantId): Promise<Product[]> {
+      const rows = ok(await db.from("tenant_products").select(cols("tenant_products")).eq("tenant_id", tenantId).eq("is_active", true).order("amount_cents"), "tenant_products") as unknown as Product[];
+      return rows.map((r) => ({ ...r, amount_cents: Number(r.amount_cents) }));
+    },
+    async scarcity(tenantId): Promise<Scarcity> {
+      const r = await db.rpc("placement_scarcity", { p_tenant: tenantId });
+      if (r.error) throw new Error(`placement_scarcity: ${r.error.message}`);
+      return r.data as unknown as Scarcity;
     },
     async counts(tenantId): Promise<CountRow[]> {
       const r = await db.rpc("directory_counts", { p_tenant: tenantId });

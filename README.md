@@ -35,6 +35,8 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run e2e:submissions` | the three public forms (Suggest an Update / Suggest a Business / Submit an Event) in a real browser against the Supabase **mock** |
 | `npm run e2e:moderation` | the admin moderation queue in a real browser against the same mock (roles, approve/apply/duplicate/reject/spam, errors) |
 | `npm run e2e:import` | the admin CSV import wizard (upload, column mapping, check, decisions, commit) in a real browser against the Supabase **mock** |
+| `npm run e2e:placements` | the admin placements manager and the plan/placement forms on a business, in a real browser against the Supabase **mock** |
+| `npm run e2e:pricing` | the public pricing page in a real browser: the **real** seeded database for products and live scarcity (Payment Link URLs are set with SQL and restored), the mock for sign-in |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 
 ### Running without a Supabase project (development only)

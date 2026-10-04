@@ -9,7 +9,7 @@ const run = promisify(execFile);   // async: the mock server lives in THIS proce
 
 const port = process.argv[2] ?? '3101';
 const host = process.argv[3] ?? 'star-valley.localhost';
-import { BIZ, cookieFor, freshDetail, freshModRows, startMock, state } from './mock-supabase.mjs';
+import { BIZ, cookieFor, freshDetail, freshModRows, freshOverview, startMock, state } from './mock-supabase.mjs';
 const base = `http://localhost:${port}`;
 let failed = 0;
 const check = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} - ${m}`); if (!c) failed++; };
@@ -143,12 +143,27 @@ try {
   check(r.status === 200 && /Import businesses/.test(text(r.body)) && /<label[^>]*for="csv-file"/.test(r.body), 'sales: the import page renders with a labelled file input');
   check(/<a[^>]*href="\/admin\/import"[^>]*>Import<\/a>/.test(r.body), 'the admin nav links to Import');
 
+  // ---- placements access ----
+  state.overview = freshOverview();
+  r = await get('/admin/placements');
+  check(r.status === 307 && r.loc === '/admin/login?next=%2Fadmin%2Fplacements', 'signed out: placements redirects to login');
+  r = await get('/admin/placements', 'tok-editor');
+  check(r.status === 307 && r.loc === '/admin', 'editor cannot open the placements manager');
+  r = await get('/admin/placements', 'tok-sales');
+  check(r.status === 200 && /Only admins can change placements/.test(text(r.body)) && !/>End now</.test(r.body), 'sales: can read placements but sees no action buttons');
+  r = await get('/admin/placements', 'tok-admin');
+  check(r.status === 200 && /Plumber One/.test(text(r.body)) && />End now</.test(r.body) && />Promote</.test(r.body), 'admin: sees holders, waitlist and the action buttons');
+  check(/<a[^>]*href="\/admin\/placements"[^>]*>Placements<\/a>/.test(r.body), 'the admin nav links to Placements');
+  state.detail = freshDetail(); state.detail.business.status = 'unclaimed';
+  r = await get(`/admin/businesses/${BIZ}`, 'tok-admin');
+  check(r.status === 200 && /Plan and placements/.test(text(r.body)) && /<label[^>]*for="l-amount"/.test(r.body) && /<label[^>]*for="p-slot"/.test(r.body), 'admin: the business page has labelled plan and placement forms');
+
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
   if (process.argv.includes('--layout')) {
-    state.modRows = freshModRows(); state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200); state.detail.business.description = 'y'.repeat(300); state.detail.business.website = 'https://example.com/' + 'z'.repeat(150);   // real-browser layout of the admin pages, signed in against the mock
+    state.overview = freshOverview(); state.modRows = freshModRows(); state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200); state.detail.business.description = 'y'.repeat(300); state.detail.business.website = 'https://example.com/' + 'z'.repeat(150);   // real-browser layout of the admin pages, signed in against the mock
     state.listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
-    try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-sales') }, timeout: 240000 })).stdout); }
+    try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-admin') }, timeout: 240000 })).stdout); }
     catch (e) { console.log(e.stdout ?? ''); failed++; }
   }
 } finally { mock.close(); }
