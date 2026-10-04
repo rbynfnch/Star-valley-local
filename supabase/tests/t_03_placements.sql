@@ -77,10 +77,11 @@ select test.ok((select max_slots from public.placement_limits where tenant_id = 
 select test.throws($$insert into public.listings (tenant_id, business_id, tier, status) values (test.id('tenantA'), test.id('biz3'), 'enhanced', 'active')$$,
                    'overlapping active listings rejected', '23P01');
 
--- public only sees live, active placements of public businesses
+-- public reads placements only through public_placements (live, active, public business; no commercial fields)
 select test.as_anon();
-select test.ok(test.count($$select 1 from public.placements where status <> 'active' or start_at > now() or end_at <= now()$$) = 0, 'anon never sees waitlisted/future/expired placements');
-select test.ok(test.count($$select 1 from public.placements$$) > 0, 'anon sees live placements');
+select test.throws('select * from public.placements', 'anon cannot read the base placements table', '42501');
+select test.ok(test.count($$select 1 from public.public_placements where end_at <= now() or start_at > now()$$) = 0, 'public view never shows future/expired placements');
+select test.ok(test.count($$select 1 from public.public_placements$$) > 0, 'anon sees live placements through the view');
 select test.as_user(test.id('adminA'));
 select test.ok(test.count($$select 1 from public.placements where status = 'waitlist'$$) > 0, 'admin sees waitlist');
 select test.as_root();

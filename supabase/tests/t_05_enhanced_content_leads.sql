@@ -26,17 +26,22 @@ select test.ok(test.count('select 1 from public.deals') = 3, 'owner sees all own
 select test.as_anon();
 select test.ok(test.count('select 1 from public.deals') = 1, 'anon sees only the live published deal');
 
--- Request a Quote: only for public Enhanced listings
+-- Request a Quote: anon can't insert directly; the server route (service role) is bound by trigger rules
+select test.throws($$insert into public.leads (tenant_id, business_id, name, email) values (test.id('tenantA'), test.id('biz1'), 'Sam', 'sam@example.test')$$,
+                   'anon cannot insert a quote request directly (must use the Turnstile route)', '42501');
+select test.as_root();
 select test.throws($$insert into public.leads (tenant_id, business_id, name, email) values (test.id('tenantA'), test.id('biz2'), 'Sam', 'sam@example.test')$$,
-                   'quote request to a Free listing is rejected', '42501');
+                   'quote request to a Free listing is rejected even for the service role', '23514');
 select test.throws($$insert into public.leads (tenant_id, business_id, name, email) values (test.id('tenantA'), test.id('bizP'), 'Sam', 'sam@example.test')$$,
-                   'quote request to a prospect is rejected', '42501');
+                   'quote request to a prospect is rejected', '23514');
 select test.throws($$insert into public.leads (tenant_id, business_id, name, email) values (test.id('tenantB'), test.id('biz1'), 'Sam', 'sam@example.test')$$,
-                   'quote request with mismatched tenant is rejected', '42501');
+                   'quote request with mismatched tenant is rejected', '23514');
 select test.throws($$insert into public.leads (tenant_id, business_id, name) values (test.id('tenantA'), test.id('biz1'), 'No Contact')$$,
                    'quote request needs an email or phone', '23514');
-insert into public.leads (tenant_id, business_id, name, email, message) values (test.id('tenantA'), test.id('biz1'), 'Sam', 'sam@example.test', 'Water heater leak');
-select test.throws('select * from public.leads', 'anon cannot read leads back', '42501');
+insert into public.leads (tenant_id, business_id, name, email, message, status) values (test.id('tenantA'), test.id('biz1'), 'Sam', 'sam@example.test', 'Water heater leak', 'converted');
+select test.ok((select status from public.leads where business_id = test.id('biz1')) = 'new', 'new quote requests always start as new');
+select test.as_anon();
+select test.throws('select * from public.leads', 'anon cannot read leads', '42501');
 select test.as_user(test.id('owner1'));
 select test.ok(test.count('select 1 from public.leads') = 1, 'Enhanced owner receives the lead');
 update public.leads set status = 'contacted' where business_id = test.id('biz1');

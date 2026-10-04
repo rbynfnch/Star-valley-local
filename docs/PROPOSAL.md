@@ -1,6 +1,6 @@
 # Star Valley Local — Proposal for review: repo structure, schema, RLS
 
-Status: **proposal, no UI written. Round 1 decisions applied (see §7).** The schema and RLS are real migrations that apply cleanly on
+Status: **proposal, no UI written. Rounds 1 and 2 of decisions applied (see §7); only item 4 is still open.** The schema and RLS are real migrations that apply cleanly on
 Postgres 16 and pass the test suites described in §5. Nothing here has been run against a real
 Supabase project yet (see "What is not verified").
 
@@ -22,7 +22,7 @@ star-valley-local/
 ├─ supabase/
 │  ├─ config.toml               (added with the Supabase CLI setup)
 │  ├─ migrations/               ordered SQL; never edit an applied migration after launch
-│  ├─ seed.sql                  communities, categories, ~30 sample businesses (slice 1, after review)
+│  ├─ seed.sql                  dev/demo seed: 11 communities, 7 categories (+22 subcategories), 30 fictional businesses
 │  └─ tests/                    plain-SQL suites + run.sh (see §5)
 ├─ src/                         (slice 2+)
 │  ├─ app/
@@ -39,7 +39,7 @@ star-valley-local/
 │  ├─ components/               ui/ (tokens-driven), directory/, admin/
 │  └─ styles/tokens.css         CSS variables extracted from the mockups, per-tenant overridable
 ├─ tailwind.config.ts           reads the CSS variables
-├─ .env.example                 (added in slice 1)
+├─ .env.example                 every variable the app will need; server-only ones marked
 └─ package.json                 Next.js + Tailwind + Supabase + Stripe only (§3 of CLAUDE.md)
 ```
 
@@ -51,7 +51,7 @@ Notes:
 
 ---
 
-## 2. Schema overview (57 tables, migrations in `supabase/migrations/`)
+## 2. Schema overview (57 tables + 2 public views, migrations in `supabase/migrations/`)
 
 | Migration | Contents |
 |---|---|
@@ -66,6 +66,7 @@ Notes:
 | `…0800_marketing` | `campaigns` (+targets/steps/recipients), `newsletters`, `email_subscribers`, `suppressions`, `email_templates`, `message_deliveries`, `social_posts` |
 | `…0900_billing` | `tenant_products`, `billing_accounts`, `payments`, `stripe_events` |
 | `…1000_rls` | RLS on every table, grants, tenant-immutability triggers |
+| `…1100_public_views` | `public_listings`, `public_placements`: the only way the public reads tier and Featured (no commercial fields) |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -126,12 +127,12 @@ Roles: `admin` satisfies every check; `sales`; `editor`. `platform_admins` are c
 | Prospects / archived businesses | – | – | own only | read | read/write | read/write |
 | Business profile fields | – | – | **edit own** (not status, slug, community, category, place ID, verification) | – | write | write |
 | Enhanced-only content (services, social links, FAQs, deals) | read **only if Enhanced** | same | write **only if Enhanced** | – | write | write |
-| Listings | live only | live only | own | – | read | write |
-| Placements | live only | live only | own; may *request* (pending/waitlist) | – | read | write |
+| Listings | tier only, via `public_listings` | same | own (base table) | – | read | write |
+| Placements | live only, via `public_placements` | same | own; may *request* (pending/waitlist) | – | read | write |
 | Verification proofs / claims / postcards | – | – | own proofs: read | – | claims + postcards: write; proofs: read | write proofs |
 | CRM (`business_crm`, contacts, opportunities, communications) | – | – | – | – | read/write | read/write |
-| Quote requests (`leads`) | **insert** (only to public Enhanced listings) | insert | read + change `status` only | – | read | read |
-| Submissions (suggest update/business, submit event) | **insert** (pending only) | insert | – | read/write | read/write | read/write |
+| Quote requests (`leads`) | **server route only** (Turnstile), Enhanced listings only | same | read + change `status` only | – | read | read |
+| Submissions (suggest update/business, submit event) | **server route only** (Turnstile), always `pending` | same | – | read/write | read/write | read/write |
 | Articles (`audience='business'` = owner resources) | – | – | read | write | – | write |
 | Tracking events / daily stats | – | – | own business: read | – | read | read |
 | Newsletter / templates / subscribers / social | – | – | – | write | – | write |
@@ -139,6 +140,13 @@ Roles: `admin` satisfies every check; `sales`; `editor`. `platform_admins` are c
 | Payments, billing, tenant settings, staff | – | – | own payments: read | – | – | write |
 | Saved items | – | own | own | – | – | – |
 | `stripe_events`, `platform_admins` | service role only | | | | | |
+
+**Anonymous users have no INSERT access to any table.** Quote requests, submissions and newsletter signups go
+through server routes that verify a Cloudflare Turnstile token and then insert with the service role. If
+anon could insert directly, anyone could post to the database API with the public key and skip the captcha.
+The business rules still live in the database: a trigger rejects a quote request to any business that is not a
+public Enhanced listing (even for the service role) and forces new quote requests to `new` and new
+submissions to `pending`.
 
 Boundary guarantees, all asserted by tests: a request to a Free listing's Request-a-Quote is rejected by
 the database, not just hidden in the UI; owners cannot self-verify or change status; staff of one tenant
@@ -164,7 +172,7 @@ cannot read or write another's rows; anon cannot forge analytics.
 ## 5. Tests
 
 `supabase/tests/run.sh` creates a fresh database, loads a tiny Supabase stub (`auth.uid()`, roles),
-applies every migration, then runs the suites. **168 assertions, all pass on Postgres 16.14.**
+applies every migration, then runs the suites. **228 assertions, all pass on Postgres 16.14.**
 
 | Suite | Covers |
 |---|---|
@@ -175,6 +183,8 @@ applies every migration, then runs the suites. **168 assertions, all pass on Pos
 | `t_04_provenance` | import never overwrites owner/admin fields, import flag in staff session, dedupe helper |
 | `t_05_enhanced_content_leads` | Enhanced gating, quote-request rule, article/deal visibility, append-only tracking, hours, rules like "no `is_featured`/ratings/distance/Premium" |
 | `t_07_comped_and_lapse` | comped placements exempt from Enhanced (still need verified), paid still needs Enhanced, lapse/shorten/cancel ends paid placements and frees the slot, renewal and successor listing leave them alone. Mutation-checked: removing the trigger fails the suite |
+| `t_08_public_views` | public views hide `source`/`created_by`/`status`, show only live rows of public businesses; base tables unreadable by anon and consumers. Mutation-checked |
+| `seed_check.sh` | loads `seed.sql` into a fresh database and asserts what anon, sales, editor and owners see (38 assertions) |
 | `t_06_rls_audit` | every table has RLS + a policy, anon grants are minimal, tenant-immutability trigger everywhere |
 
 Bugs the tests caught while writing this: (1) my verification guard used trigger depth and would have
@@ -209,27 +219,34 @@ columns and the Premium tier.
 3. **A lapsing Enhanced listing ends its paid Featured placements.** Implemented as described in §2.
    Comped placements are independent of listings.
 
-### Still open (these change the schema or behavior)
-4. **Verification lapse vs. Featured.** The mirror of decision 3: if a Featured business's verification
-   expires (1 year) or its owner is removed, it drops to unverified but its placement keeps running.
-   Same treatment (end the placement)? Or a grace period? Not implemented.
-5. **Public visibility of commercial fields.** Anonymous readers can see `listings.source` and
-   `placements.source` (e.g. `founding_member`, which reveals who was comped). Also `created_by` UUIDs.
-   Hide behind a view?
-6. **Anonymous insert paths** (`leads`, `submissions`) are policy-gated, but need captcha or rate limiting
-   in the route handler. Is Cloudflare Turnstile acceptable, or something else? (New third-party
-   dependency, so asking first.)
-7. **Import protection for child tables** (hours, services, links, FAQs, photos): the schema has provenance
-   columns, but "replace all hours" from a re-import must skip businesses whose rows were edited by
-   owner/admin. I plan to implement that in the CSV import tool rather than by trigger. OK?
-8. **Newsletter subscribe** goes through a server route (double opt-in) instead of an anonymous insert, to
-   avoid leaking which emails are subscribed. OK?
-9. **Seed data**: ~30 sample businesses across the communities and the 7 top-level categories from the
-   mockup. Default: clearly fictional names ("Sample Plumbing Co") so nothing impersonates a real local
-   business. OK?
+### Decided (round 2)
+5. **Commercial fields are hidden behind views.** Base `listings` and `placements` are readable only by staff
+   and the owning business. The public reads `public_listings` and `public_placements`, which expose tier
+   and live Featured slots but not `source` (paid / founding_member...), `created_by` or `status`.
+   *Not hidden:* the `created_by` / `updated_by` / `uploaded_by` UUID columns on the other public tables
+   (businesses, media, hours/services/links/FAQs/photos, articles, events). They are random auth IDs of staff
+   with no name or email attached, and hiding them would break `select *` for every public query. Say so if
+   you want them hidden anyway; the way to do it is more views.
+6. **Cloudflare Turnstile approved** for quote requests, submissions and newsletter signup. It only works if
+   the route is the only way in, so anonymous inserts were removed from the database (see §3). Env vars are
+   in `.env.example`. This is the one new third-party service beyond `CLAUDE.md` §3.
+7. **Import protection for hours/services/links/FAQs/photos** will be implemented in the CSV import tool
+   (skip businesses whose rows were edited by owner/admin), not by trigger.
+8. **Newsletter signup** is a server route with double opt-in; there is no anonymous insert on
+   `email_subscribers`.
+9. **Seed data** is clearly fictional: "Sample …" names, reserved 555-01xx phones, `.example` websites.
 
-## 8. Next steps once you approve
+### Still open
+4. **Verification lapse vs. Featured** (needs your decision). Today, if a Featured business's verification
+   expires (1 year) or its owner is removed, it drops to unverified but its placement keeps running and
+   stays public until `end_at`. The check "must be verified" only runs when a placement is activated.
+   Options: (1) end the placement immediately, same as the Enhanced-lapse rule; (2) a grace period
+   (suggest 14 days) then end it; (3) leave it. I recommend 2. Not implemented.
 
-1. Apply answers to the open questions; run suites against real Supabase (`supabase db reset`).
-2. Seed data + `.env.example` + tenant config for Star Valley (slice 1 complete).
-3. Scaffold Next.js, extract design tokens from the mockups, build slice 2 (public directory).
+## 8. Next steps
+
+1. Your call on item 4; I implement it with tests.
+2. Run the migrations, seed and suites against a real Supabase project (`supabase db reset`). Not yet done:
+   this container has no Supabase CLI.
+3. Scaffold Next.js, extract design tokens from the mockups (`tenants.theme` is intentionally empty until
+   then), and build slice 2 (public directory).

@@ -8,9 +8,12 @@ select test.ok(not exists (select 1 from pg_class c join pg_namespace n on n.oid
 select test.ok(not exists (select 1 from information_schema.role_table_grants
                            where table_schema = 'public' and grantee = 'anon' and privilege_type in ('UPDATE', 'DELETE', 'TRUNCATE')),
                'anon has no UPDATE/DELETE/TRUNCATE anywhere');
-select test.ok((select array_agg(table_name::text order by table_name::text) from information_schema.role_table_grants
-                where table_schema = 'public' and grantee = 'anon' and privilege_type = 'INSERT') = array['leads', 'submissions'],
-               'anon may INSERT only leads and submissions');
+select test.ok(not exists (select 1 from information_schema.role_table_grants where table_schema = 'public' and grantee = 'anon' and privilege_type = 'INSERT'),
+               'anon has no INSERT anywhere (all anonymous writes go through captcha-protected server routes)');
+select test.ok(not exists (select 1 from information_schema.role_table_grants where table_schema = 'public' and grantee = 'authenticated' and table_name in ('leads') and privilege_type = 'INSERT'),
+               'signed-in users cannot insert leads directly either');
+select test.ok(not exists (select 1 from information_schema.role_table_grants where table_schema = 'public' and grantee = 'anon' and table_name in ('listings', 'placements')),
+               'anon cannot read base listings/placements (commercial fields)');
 select test.ok(not exists (select 1 from information_schema.role_table_grants
                            where table_schema = 'public' and grantee in ('anon', 'authenticated') and table_name in ('platform_admins', 'stripe_events')),
                'service-only tables have no client grants');

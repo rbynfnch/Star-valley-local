@@ -7,7 +7,11 @@
 --   * staff:   rows in tenant_staff (admin | sales | editor) or platform_admins (cross-tenant).
 --              'admin' satisfies every role check.
 --   * owner:   rows in business_owners; scoped to their own businesses.
---   * service_role bypasses RLS (webhooks, import, claim flow, tracking ingest, subscribe endpoint).
+--   * service_role bypasses RLS (webhooks, import, claim flow, tracking ingest, subscribe endpoint, and the
+--     quote-request / submission routes, which verify a Cloudflare Turnstile token before inserting).
+--     Anonymous users have NO insert access to anything: a direct PostgREST insert would skip the captcha.
+--   * listings/placements expose commercial fields (source: paid / founding_member...), so the public reads
+--     them only through the views in the next migration, never the base tables.
 --   * Default deny: a table/command with no matching policy is inaccessible.
 
 -- ---------------------------------------------------------------------------------------------
@@ -43,7 +47,7 @@ begin
   foreach t in array array[
     'tenants','tenant_domains','regions','communities','categories','article_categories','authors','event_categories',
     'businesses','business_categories','business_service_areas','business_hours','business_services','business_links',
-    'business_faqs','business_photos','media_assets','listings','placements','placement_limits','tenant_products',
+    'business_faqs','business_photos','media_assets','placement_limits','tenant_products',
     'articles','article_items','community_events','deals'] loop
     execute format('grant select on public.%I to anon, authenticated', t);
   end loop;
@@ -66,9 +70,8 @@ begin
   end loop;
 end $$;
 grant select on public.tracking_events, public.business_stats_daily to authenticated;   -- no client writes
-grant select, insert on public.leads to authenticated;
+grant select on public.leads to authenticated;                                          -- inserts: service role only
 grant update (status) on public.leads to authenticated;                                 -- owners triage only
-grant insert on public.leads, public.submissions to anon;
 -- not granted to any client role: platform_admins, stripe_events (service role only)
 
 -- ---------------------------------------------------------------------------------------------
@@ -143,14 +146,13 @@ create policy media_delete on public.media_assets for delete to authenticated
 -- ---------------------------------------------------------------------------------------------
 -- Listings, placements, billing
 -- ---------------------------------------------------------------------------------------------
-create policy listings_read on public.listings for select to anon, authenticated
-  using ((status = 'active' and app.business_is_public(business_id)) or app.is_staff(tenant_id) or app.owns_business(business_id));
+create policy listings_read on public.listings for select to authenticated
+  using (app.is_staff(tenant_id) or app.owns_business(business_id));       -- public reads public_listings
 create policy listings_admin on public.listings for all to authenticated
   using (app.has_role(tenant_id, '{}')) with check (app.has_role(tenant_id, '{}'));
 
-create policy placements_read on public.placements for select to anon, authenticated
-  using ((status = 'active' and start_at <= now() and end_at > now() and app.business_is_public(business_id))
-         or app.has_role(tenant_id, '{sales}') or app.owns_business(business_id));
+create policy placements_read on public.placements for select to authenticated
+  using (app.has_role(tenant_id, '{sales}') or app.owns_business(business_id));   -- public reads public_placements
 create policy placements_admin on public.placements for all to authenticated
   using (app.has_role(tenant_id, '{}')) with check (app.has_role(tenant_id, '{}'));
 create policy placements_owner_request on public.placements for insert to authenticated      -- V2: join a waitlist
@@ -224,19 +226,14 @@ end $$;
 -- ---------------------------------------------------------------------------------------------
 -- Consumer-originated rows
 -- ---------------------------------------------------------------------------------------------
--- Quote requests are accepted only for public Enhanced listings (the owner can actually receive them).
--- Rate limiting / captcha belongs in the route handler in front of this.
-create policy leads_insert on public.leads for insert to anon, authenticated
-  with check (status = 'new' and app.business_accepts_quotes(business_id, tenant_id)
-              and (consumer_user_id is null or consumer_user_id = (select auth.uid())));
+-- Quote requests and submissions are inserted ONLY by server routes (service role) after a Turnstile check.
+-- The rules (Enhanced-only quotes, pending-only submissions) are enforced by triggers in the engagement
+-- migration, so they hold for the service role too.
 create policy leads_read   on public.leads for select to authenticated using (app.owns_business(business_id) or app.has_role(tenant_id, '{sales}'));
 create policy leads_update on public.leads for update to authenticated
   using (app.owns_business(business_id) or app.has_role(tenant_id, '{sales}'))
   with check (app.owns_business(business_id) or app.has_role(tenant_id, '{sales}'));
 
-create policy submissions_insert on public.submissions for insert to anon, authenticated
-  with check (status = 'pending' and reviewed_by is null and reviewed_at is null and resolution_notes is null
-              and (submitter_user_id is null or submitter_user_id = (select auth.uid())));
 create policy submissions_staff on public.submissions for all to authenticated
   using (app.has_role(tenant_id, '{sales,editor}')) with check (app.has_role(tenant_id, '{sales,editor}'));
 

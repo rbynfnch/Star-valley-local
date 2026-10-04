@@ -95,3 +95,27 @@ create function app.rollup_tracking(p_day date) returns void language sql securi
   group by tenant_id, business_id, event_type
   on conflict (business_id, day, event_type) do update set n = excluded.n
 $$;
+
+-- Quote requests and submissions are inserted by server routes using the service role (after Cloudflare
+-- Turnstile verification), so RLS does not apply to them. These triggers keep the business rules in the
+-- database regardless of who inserts.
+create function app.leads_before_insert() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if not app.business_accepts_quotes(new.business_id, new.tenant_id) then
+    raise exception 'this business does not accept quote requests' using errcode = 'check_violation';
+  end if;
+  new.status := 'new';
+  return new;
+end $$;
+create trigger leads_before_insert before insert on public.leads
+  for each row execute function app.leads_before_insert();
+
+create function app.submissions_before_insert() returns trigger language plpgsql as $$
+begin
+  if (select auth.uid()) is null then          -- server route / service role: never trust client-set review state
+    new.status := 'pending'; new.reviewed_by := null; new.reviewed_at := null; new.resolution_notes := null;
+  end if;
+  return new;
+end $$;
+create trigger submissions_before_insert before insert on public.submissions
+  for each row execute function app.submissions_before_insert();

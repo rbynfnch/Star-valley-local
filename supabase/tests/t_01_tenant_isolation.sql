@@ -21,10 +21,21 @@ select test.throws($$insert into public.tracking_events (tenant_id, event_type, 
                    'anon cannot forge tracking events', '42501');
 select test.throws($$update public.businesses set name = 'hax' where id = test.id('biz1')$$, 'anon cannot update businesses', '42501');
 
--- anon submissions: may insert (pending only), never read back
-insert into public.submissions (tenant_id, kind, payload) values (test.id('tenantA'), 'event', '{"title":"Fair"}');
-select test.throws($$insert into public.submissions (tenant_id, kind, status, payload) values (test.id('tenantA'), 'event', 'approved', '{}')$$,
-                   'anon cannot self-approve a submission', '42501');
+-- anon cannot insert anything directly: quote requests and submissions go through server routes (service role)
+-- that verify Cloudflare Turnstile first. A direct PostgREST insert would skip the captcha.
+select test.throws($$insert into public.submissions (tenant_id, kind, payload) values (test.id('tenantA'), 'event', '{"title":"Fair"}')$$,
+                   'anon cannot insert submissions directly', '42501');
+select test.throws($$insert into public.leads (tenant_id, business_id, name, email) values (test.id('tenantA'), test.id('biz1'), 'Sam', 'sam@example.test')$$,
+                   'anon cannot insert leads directly', '42501');
+select test.throws($$insert into public.email_subscribers (tenant_id, email) values (test.id('tenantA'), 'x@example.test')$$,
+                   'anon cannot subscribe directly (server route does double opt-in)', '42501');
+
+-- the server route (service role: no auth.uid()) inserts; it cannot smuggle in review state
+select test.as_root();
+insert into public.submissions (tenant_id, kind, status, reviewed_by, payload)
+  values (test.id('tenantA'), 'event', 'approved', test.id('adminA'), '{"title":"Fair"}');
+select test.ok((select status = 'pending' and reviewed_by is null from public.submissions where payload ->> 'title' = 'Fair'),
+               'route insert is forced to pending with no reviewer');
 select test.throws($$insert into public.submissions (tenant_id, kind, payload) values (test.id('tenantA'), 'update', '{}')$$,
                    'update submissions require a business', '23514');
 

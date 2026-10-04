@@ -11,4 +11,5 @@ $PSQL -f tests/00_supabase_stub.sql
 for f in migrations/*.sql; do echo "== $f"; $PSQL -f "$f"; done
 for f in tests/t_*.sql; do echo "== $f"; $PSQL -f "$f" 2>&1 | sed -E "s/^psql:[^ ]+ NOTICE:  //"; done
 tests/concurrency.sh
+SEED_DB=svl_seed tests/seed_check.sh
 echo "ALL OK"
