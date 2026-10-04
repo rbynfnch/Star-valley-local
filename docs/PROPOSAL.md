@@ -73,6 +73,7 @@ Notes:
 | `…1500_search` | `search_businesses()` (ranked full-text + fuzzy search, filters, paging, optional id list) and `directory_counts()` (businesses per category x community, for the SEO hubs); both security invoker, callable by anon, still bound by RLS |
 | `…1600_business_profile` | `business_profile(tenant, slug)` returns one jsonb document and is the single place that decides Free vs Enhanced: Free gets logo + ONE photo, short description only, no email/services/links/FAQs/deals; Enhanced gets everything. security invoker, callable by anon, bound by RLS |
 | `…1700_import_businesses` | `import_businesses(tenant, rows)`: commits an approved CSV import. Always creates **prospects** (hidden), writes with source `import` so owner/admin edits survive re-imports, re-checks duplicates at write time, suffixes colliding slugs, and reports per row (created / updated / skipped_duplicate / error). security invoker: sales staff and service_role only |
+| `…1800_admin_dashboard` | `admin_dashboard_counts(tenant)` (the six CLAUDE.md §8 counts; staff only, errors for anyone else) and `my_staff_role(tenant)` (the caller's own role; platform admins are admin) |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -351,3 +352,8 @@ columns and the Premium tier.
 ## CSV import (admin slice, part 1)
 - `src/lib/import/` plans an import without writing (parse, map columns, normalise, dedupe, classify rows); `import_businesses()` commits it.
 - Known limitation: the duplicate helper compares street addresses by trigram similarity, so "1 Pine St" and "2 Pine St" look alike. Same name + near address is flagged as a duplicate. The cost is a skipped real neighbour, not a duplicate listing; the review step is where an admin overrides it (`force`).
+
+## Admin auth (admin slice, part 2)
+- Email + password via Supabase Auth, cookie sessions through `@supabase/ssr` (approved dependency). No public sign-up.
+- Not verified against a real Supabase project: only against a mock (`npm run smoke:admin`) and the SQL tests. First thing to do once a project exists: sign in for real.
+- Login has no CAPTCHA or app-level rate limit yet (Supabase Auth applies its own limits); add Turnstile before launch.

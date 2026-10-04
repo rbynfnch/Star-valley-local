@@ -28,6 +28,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run smoke:hubs` | end-to-end check of the SEO hub pages, sitemap and robots.txt, including a crawl of every sitemap URL. Run it again with `--paging` against a server started as `SVL_PAGE_SIZE=5 npm run dev` to test pagination |
 | `npm run smoke:profile` | end-to-end check of business profiles: Enhanced vs Free vs unclaimed rendering, JSON-LD, 404s, and a crawl of every profile in the sitemap (needs fixtures mode with `SVL_MEDIA_BASE_URL=/demo-media`) |
 | `npm run demo:media` | dev only: copies the placeholder seed images into `public/demo-media/` (gitignored) |
+| `npm run smoke:admin` | admin guard end to end against a **mock** of Supabase auth/RPC (not real Supabase). Start the app with `NEXT_PUBLIC_SUPABASE_URL=http://localhost:54399 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon npm run dev` first |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 
 ### Running without a Supabase project (development only)
@@ -45,3 +46,12 @@ Fixtures mode refuses to run in production.
 supabase/tests/run.sh         # needs a local Postgres 16 superuser; builds a throwaway DB, runs every suite
 ```
 The seed (`supabase/seed.sql`) is dev/demo data only and runs on `supabase db reset`. Never run it in production.
+
+## Admin
+`/admin` (noindex, never cached). Staff sign in with email + password (Supabase Auth); sessions are cookies refreshed by `src/proxy.ts`.
+Three checks, in order: the proxy (signed in?), the admin layout (`my_staff_role()` for THIS tenant), and RLS in the database.
+There is no sign-up. Create the first staff user in the Supabase dashboard (Authentication), then, as the service role / SQL editor:
+```sql
+insert into public.tenant_staff (tenant_id, user_id, role)
+values ((select id from public.tenants where slug = 'star-valley'), '<auth user uuid>', 'admin');   -- admin | sales | editor
+```

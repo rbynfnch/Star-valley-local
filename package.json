@@ -17,9 +17,11 @@
     "check:layout": "node scripts/check-layout.mjs",
     "smoke:hubs": "node scripts/smoke-hubs.mjs",
     "demo:media": "node scripts/demo-media.mjs",
-    "smoke:profile": "node scripts/smoke-profile.mjs"
+    "smoke:profile": "node scripts/smoke-profile.mjs",
+    "smoke:admin": "node scripts/smoke-admin.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "next": "16.3.8",
     "react": "19.2.8",
