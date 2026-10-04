@@ -13,4 +13,7 @@ export const PUBLIC_READS = {
     "website", "address_line1", "city", "state", "postal_code", "verification_level", "status"],
 } as const satisfies Record<string, readonly string[]>;
 
+// RPC functions the public site calls (anon must be allowed to EXECUTE each; checked by anon-access.test.ts).
+export const PUBLIC_RPC = ["search_businesses"] as const;
+
 export const cols = (t: keyof typeof PUBLIC_READS): string => PUBLIC_READS[t].join(",");

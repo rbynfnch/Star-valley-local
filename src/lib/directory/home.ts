@@ -38,19 +38,21 @@ export function buildEventCards(rows: EventRow[], communities: Community[], cate
   return cards.sort((a, b) => a.start.getTime() - b.start.getTime()).slice(0, limit);
 }
 
-/** Cards for the businesses in the live homepage slot, rotated hourly. Rules: no ratings, no distance, no "open now". */
+/** One business as shown on a card. Rules: no ratings, no distance, no "open now". Unsafe or missing links are dropped. */
+export function toBusinessCard(b: BusinessRow, communities: Community[], categories: Category[]): BusinessCardModel {
+  const site = safeExternalUrl(b.website);
+  return {
+    id: b.id, slug: b.slug, name: b.name, description: b.short_description,
+    communityName: communities.find((c) => c.id === b.home_community_id)?.name ?? null,
+    categoryName: categories.find((c) => c.id === b.primary_category_id)?.name ?? null,
+    verification: verificationBadge(b.verification_level),
+    telHref: telHref(b.phone), website: site ? { href: site, label: websiteLabel(site) } : null, directionsHref: directionsHref(b),
+  };
+}
+
+/** Cards for the businesses in the live homepage slot, rotated hourly. */
 export function buildFeaturedCards(rows: BusinessRow[], communities: Community[], categories: Category[], tenantId: string, now: Date, visible = HOME_FEATURED_VISIBLE): BusinessCardModel[] {
-  const chosen = rotateFeatured(rows, visible, `${tenantId}:homepage`, now);
-  return chosen.map((b) => {
-    const site = safeExternalUrl(b.website);
-    return {
-      id: b.id, slug: b.slug, name: b.name, description: b.short_description,
-      communityName: communities.find((c) => c.id === b.home_community_id)?.name ?? null,
-      categoryName: categories.find((c) => c.id === b.primary_category_id)?.name ?? null,
-      verification: verificationBadge(b.verification_level),
-      telHref: telHref(b.phone), website: site ? { href: site, label: websiteLabel(site) } : null, directionsHref: directionsHref(b),
-    };
-  });
+  return rotateFeatured(rows, visible, `${tenantId}:homepage`, now).map((b) => toBusinessCard(b, communities, categories));
 }
 
 export const topLevelCategories = (cats: Category[]) => cats.filter((c) => c.parent_id === null).sort((a, b) => a.sort_order - b.sort_order);

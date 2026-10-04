@@ -70,6 +70,7 @@ Notes:
 | `…1200_grace_notifications` | `tenant_policies`, `verification_grace`, `notifications` (email outbox), daily maintenance job, worker functions. See `docs/NOTIFICATIONS.md` |
 | `…1300_grace_rls_cron` | RLS for those tables, `featured_at_risk` admin view, `pg_cron` schedule |
 | `…1400_credits` | `account_credits` ledger and pro-rata crediting when a paid placement is ended by a verification lapse |
+| `…1500_search` | `search_businesses()`: ranked full-text + fuzzy search, filters and paging, security invoker (callable by anon, still bound by RLS) |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -146,8 +147,17 @@ The home page already links to these. Only `/` exists so far; the rest 404 until
 
 ### Slice 2 status
 
-Done: tenant resolution (host to tenant), tenant theme, header/footer, **home page**. Not yet: directory search,
-category/community pages, business profile, events, deals, articles, sitemap.
+Done: tenant resolution (host to tenant), tenant theme, header/footer, **home page**, **directory and search**
+(`/businesses`). Not yet: category/community pages, business profile, events, deals, articles, sitemap.
+
+Directory decisions: ranking and filtering live in one database function (`search_businesses`), tested in SQL as the
+anonymous role. **Paid placement never changes organic ranking** (a test compares result order with and without
+live placements); Featured businesses get their own labelled strips on the home, category and community pages.
+Matching: full-text, name contains, fuzzy name (typos), Enhanced-only service names, category names. A
+community filter includes businesses that *serve* that community, not only those based there. Only the bare
+directory and plain pagination are indexable; any search or filter URL is `noindex` and canonical to `/businesses`
+(the category and community pages are the ones meant to rank). Known limit: "plumber" finds "Plumbing" through
+fuzzy name matching, but synonyms (for example "AC repair" for HVAC) would need a synonyms list per category.
 
 How the public site reads data: `src/lib/directory/queries.ts` lists every table and column it reads, flat
 selects only (no relationship embedding). A test runs each one **as the anonymous database role** against a

@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { BusinessRow, Category, Community, DirectoryData, EventRow, Tenant } from "./types.ts";
+import { splitSearchRows } from "./search-rows.ts";
+import type { BusinessRow, Category, Community, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
 // (`npm run fixtures`), so it shows exactly what the public could read. Never used in production (data.ts refuses).
@@ -32,6 +34,27 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
       const t = now.getTime();
       return s.community_events.filter((e) => e.tenant_id === id && e.status === "published"
         && (new Date(e.starts_at).getTime() >= t || (e.ends_at && new Date(e.ends_at).getTime() >= t) || e.rrule)).slice(0, 100);
+    },
+    // Runs the REAL public.search_businesses() as the anonymous role against the seeded local database, so dev and
+    // production share one implementation. Values go in as psql variables (:'name' quotes them): never string-built.
+    async searchBusinesses(id, q: SearchQuery): Promise<SearchResult> {
+      const db = process.env.SVL_FIXTURE_DB ?? "svl_seed";
+      const arr = (a: (string | number)[]) => (a.length ? `{${a.join(",")}}` : "");
+      const sql = `begin; set local role anon;
+        select coalesce(jsonb_agg(t), '[]'::jsonb) from public.search_businesses(
+          :'tenant'::uuid, :'q', nullif(:'comms', '')::uuid[], nullif(:'cats', '')::uuid[],
+          :'verified'::boolean, :'featured'::boolean, :'deals'::boolean, :'quotes'::boolean,
+          nullif(:'price', '')::smallint[], :'sort', :'lim'::int, :'off'::int) t;
+        rollback;`;
+      const v = (k: string, val: string) => ["-v", `${k}=${val}`];
+      const r = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-d", db,
+        ...v("tenant", id), ...v("q", q.q), ...v("comms", arr(q.communityIds)), ...v("cats", arr(q.categoryIds)),
+        ...v("verified", String(q.verified)), ...v("featured", String(q.featured)), ...v("deals", String(q.deals)), ...v("quotes", String(q.quotes)),
+        ...v("price", arr(q.price)), ...v("sort", q.sort), ...v("lim", String(q.limit)), ...v("off", String(q.offset)), "-f", "-"],
+        { input: sql, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+      if (r.status !== 0) throw new Error(`fixtures search failed: ${r.stderr}`);
+      const json = r.stdout.split("\n").find((l) => l.startsWith("["));
+      return splitSearchRows(JSON.parse(json ?? "[]") as (SearchRow & { total_count: number | string })[]);
     },
     async homepageFeatured(id) {
       const ids = new Set(s.public_placements.filter((p) => p.tenant_id === id && p.slot_type === "homepage").map((p) => p.business_id));

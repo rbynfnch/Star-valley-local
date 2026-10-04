@@ -15,6 +15,14 @@ export type BusinessRow = {
   verification_level: VerificationLevel;
 };
 
+export type SearchQuery = {
+  q: string; communityIds: string[]; categoryIds: string[];
+  verified: boolean; featured: boolean; deals: boolean; quotes: boolean;
+  price: number[]; sort: "relevance" | "name"; limit: number; offset: number;
+};
+export type SearchRow = BusinessRow & { price_range: number | null; live_placement: boolean; accepts_quotes: boolean; has_live_deal: boolean };
+export type SearchResult = { rows: SearchRow[]; total: number };
+
 // Everything the public pages read. Implemented by supabase.ts (production) and fixtures.ts (dev/test only).
 // Methods return only what the anonymous role may read; the database (RLS + views) is the access policy.
 export interface DirectoryData {
@@ -28,4 +36,6 @@ export interface DirectoryData {
   upcomingEventRows(tenantId: string, now: Date): Promise<EventRow[]>;
   /** Businesses with a live homepage placement (from public_placements), in no particular order. */
   homepageFeatured(tenantId: string): Promise<BusinessRow[]>;
+  /** public.search_businesses(): ranking, filters and paging happen in the database. `total` is the full match count. */
+  searchBusinesses(tenantId: string, query: SearchQuery): Promise<SearchResult>;
 }

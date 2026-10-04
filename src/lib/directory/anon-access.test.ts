@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { PUBLIC_READS } from './queries.ts';
+import { PUBLIC_READS, PUBLIC_RPC } from './queries.ts';
 
 // Runs every table/column the public site reads AS THE ANONYMOUS DATABASE ROLE against a seeded database.
 // This is what stands in for PostgREST locally: a permission error here would be a runtime error in production.
@@ -18,6 +18,14 @@ for (const [table, columns] of Object.entries(PUBLIC_READS)) {
   test(`anon can read public.${table}(${columns.length} columns)`, { skip }, () => {
     const r = psql(`begin; set local role anon; select ${columns.join(', ')} from public.${table} limit 1; rollback;`);
     assert.equal(r.status, 0, r.stderr);
+  });
+}
+
+for (const fn of PUBLIC_RPC) {
+  test(`anon can EXECUTE public.${fn}() and gets only public rows`, { skip }, () => {
+    const r = psql(`begin; set local role anon; select count(*) from public.${fn}((select id from public.tenants limit 1), null); rollback;`);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(Number(r.stdout.split('\n').find((l) => /^\d+$/.test(l))) >= 1);
   });
 }
 
