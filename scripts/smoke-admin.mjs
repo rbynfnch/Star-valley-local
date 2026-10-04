@@ -3,7 +3,6 @@
 // Start the app first, pointing it at the mock:
 //   NEXT_PUBLIC_SUPABASE_URL=http://localhost:54399 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon npm run dev -- -p 3101
 //   node scripts/smoke-admin.mjs [appPort] [host]
-import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const run = promisify(execFile);   // async: the mock server lives in THIS process and must keep answering
@@ -107,10 +106,24 @@ try {
   r = await get(`/admin/businesses/${BIZ}`, 'tok-sales');
   check(!/View public page/.test(r.body), 'a prospect has no public-page link');
 
+  // ---- edit page access ----
+  state.detail = freshDetail();
+  r = await get(`/admin/businesses/${BIZ}/edit`);
+  check(r.status === 307 && /\/admin\/login/.test(r.loc ?? ''), 'signed out: the edit page redirects to login');
+  r = await get(`/admin/businesses/${BIZ}/edit`, 'tok-editor');
+  check(r.status === 307 && r.loc === '/admin', 'editor cannot open the edit page');
+  r = await get('/admin/businesses/nope/edit', 'tok-sales');
+  check(r.status === 404, 'edit with a malformed id is a 404');
+  r = await get(`/admin/businesses/${BIZ}/edit`, 'tok-sales');
+  check(r.status === 200 && /Edit business/.test(text(r.body)) && /<label[^>]*for="website"/.test(r.body) && /<label[^>]*for="short_description"/.test(r.body), 'sales: the edit page renders with labelled fields');
+  check(/href="\/admin\/businesses\/[0-9a-f-]+\/edit"/.test((await get(`/admin/businesses/${BIZ}`, 'tok-sales')).body), 'the detail page links to Edit');
+  r = await get(`/admin/businesses/${BIZ}?saved=1`, 'tok-sales');
+  check(/Changes saved\./.test(text(r.body)), 'the saved banner shows after an edit');
+
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
   if (process.argv.includes('--layout')) {
-    state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200);   // real-browser layout of the admin pages, signed in against the mock
+    state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200); state.detail.business.description = 'y'.repeat(300); state.detail.business.website = 'https://example.com/' + 'z'.repeat(150);   // real-browser layout of the admin pages, signed in against the mock
     state.listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
     try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-sales') }, timeout: 240000 })).stdout); }
     catch (e) { console.log(e.stdout ?? ''); failed++; }

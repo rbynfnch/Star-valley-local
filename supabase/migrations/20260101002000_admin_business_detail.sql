@@ -9,7 +9,7 @@ begin
   select jsonb_build_object(
     'business', jsonb_build_object(
       'id', b.id, 'slug', b.slug, 'name', b.name, 'legal_name', b.legal_name, 'status', b.status,
-      'community', co.name, 'category', ca.name,
+      'community', co.name, 'category', ca.name, 'home_community_id', b.home_community_id, 'primary_category_id', b.primary_category_id,
       'address_line1', b.address_line1, 'address_line2', b.address_line2, 'city', b.city, 'state', b.state, 'postal_code', b.postal_code,
       'phone', b.phone, 'website', b.website, 'email', b.email, 'short_description', b.short_description, 'description', b.description,
       'hours_note', b.hours_note, 'google_place_id', b.google_place_id,

@@ -76,6 +76,7 @@ Notes:
 | `…1800_admin_dashboard` | `admin_dashboard_counts(tenant)` (the six CLAUDE.md §8 counts; staff only, errors for anyone else) and `my_staff_role(tenant)` (the caller's own role; platform admins are admin) |
 | `…1900_admin_business_list` | `admin_list_businesses(...)`: staff list with filters (status, community, category, tier, lead stage, verified), name/phone search with literal `%`/`_`, stable paging. Sales and admin only (editors are refused: CRM data). Missing CRM row = stage `new`; tier is `enhanced` only while a listing is live |
 | `…2000_admin_business_detail` | `admin_business_detail()` (one document: fields + per-field provenance, CRM, listing, placements, proofs without their evidence, contacts, opportunities, communications, marketing indicators), `set_lead_stage()` (upsert + audit note) and `add_communication()` (staff id is always the caller). Sales and admin only |
+| `…2100_admin_edit_status` | `update_business_fields()` (whitelisted keys, only present keys change, `''` clears, validated; staff writes are recorded as `admin` provenance so imports never overwrite them) and `set_business_status()` (publish prospect → unclaimed/claimed, archive, restore; archive refused while a paid listing or placement is live; every change logged) |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -368,3 +369,8 @@ columns and the Premium tier.
 - `/admin/businesses/[id]`: profile data with who-last-wrote-it beside each value, verification and listing, placements, marketing opportunity indicators, contacts, opportunities, activity log, plus two forms: lead stage and "add to the log" (note, call, visit with outcome, DM, email, SMS, meeting, postcard; optional follow-up date, shown as 9:00 AM tenant time).
 - Not built yet from CLAUDE.md §8: editing profile fields, contacts and opportunities CRUD, services checklist editing, **photo on a field visit**, claim tools, placement actions, publish/archive.
 - A failed save keeps what was typed (bad signal in the field); browsers send CRLF newlines, stored as LF.
+
+## Edit and publish (admin slice, part 5)
+- `/admin/businesses/[id]/edit`: the profile form, with a "Visibility" card on the detail page (Publish / Archive / Restore). Forms submit via `onSubmit` so a failed save never wipes what was typed.
+- Publishing is the only way a prospect (CSV import, suggested business) reaches the public site. Archive is blocked while the business has a paid listing or placement: end those first (the placements manager will own that).
+- Still not editable: hours (structured), photos, services, links, FAQs, secondary categories and service areas. Those need their own editors.

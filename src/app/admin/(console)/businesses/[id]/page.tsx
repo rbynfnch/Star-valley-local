@@ -8,6 +8,7 @@ import { STAGES } from "@/lib/admin/list-params";
 import { formatDay, formatStamp, label } from "@/lib/admin/format";
 import { telHref } from "@/lib/format";
 import { EntryForm, StageForm } from "./Forms";
+import { StatusForm } from "./StatusForm";
 
 export const metadata: Metadata = { title: "Business" };
 
@@ -32,9 +33,10 @@ const Card = ({ title, children }: { title: string; children: React.ReactNode })
 );
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-text-subtle">{children}</p>;
 
-export default async function BusinessDetail({ params }: PageProps<"/admin/businesses/[id]">) {
+export default async function BusinessDetail({ params, searchParams }: PageProps<"/admin/businesses/[id]">) {
   const staff = await requireArea("businesses");
   const { id } = await params;
+  const saved = (await searchParams).saved === "1";
   if (!isUuid(id)) notFound();
   const supabase = await createUserClient();
   const { data, error } = await supabase.rpc("admin_business_detail", { p_tenant: staff.tenant.id, p_business: id });
@@ -58,9 +60,12 @@ export default async function BusinessDetail({ params }: PageProps<"/admin/busin
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
           {tel && <a href={tel} className="rounded-button border border-slate-600 px-3 py-1.5 font-medium text-link">Call {b.phone}</a>}
+          <Link href={`/admin/businesses/${b.id}/edit`} className="rounded-button bg-brand px-3 py-1.5 font-semibold text-brand-contrast hover:bg-brand-hover">Edit</Link>
           {published && <a href={`/business/${b.slug}`} target="_blank" rel="noopener" className="rounded-button border border-slate-600 px-3 py-1.5 font-medium text-link">View public page</a>}
         </div>
       </div>
+
+      {saved && <p role="status" className="mt-4 rounded-card bg-surface-muted p-3 text-sm font-medium text-green-800">Changes saved.</p>}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
@@ -98,6 +103,10 @@ export default async function BusinessDetail({ params }: PageProps<"/admin/busin
         </div>
 
         <div className="min-w-0 space-y-4">
+          <Card title="Visibility">
+            <p className="mb-2 text-text-body">{published ? "Live on the public site." : b.status === "archived" ? "Archived (not public)." : "Hidden prospect (not public)."}</p>
+            <StatusForm business={b.id} status={b.status} />
+          </Card>
           <Card title="Lead">
             <StageForm business={b.id} stage={stage} lostReason={d.crm?.lost_reason ?? null} stages={STAGES.map((s) => ({ value: s, label: label(s) }))} />
             {d.crm?.next_action && <p className="mt-3 text-text-body">Next: {d.crm.next_action}{d.crm.next_action_at ? ` (${formatDay(d.crm.next_action_at, tz)})` : ""}</p>}

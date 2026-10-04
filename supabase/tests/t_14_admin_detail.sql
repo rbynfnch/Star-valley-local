@@ -17,6 +17,8 @@ select test.ok(test.det()::text not like '%SECRET-12345%' and test.det()->'proof
 select test.ok(test.det('00000000-0000-0000-0000-00000000dead') is null, 'T7: an unknown business is null');
 select test.ok(test.det(test.id('bizB')) is null, 'T8: another tenant''s business is null, not leaked');
 
+select test.ok(test.det()->'business'->>'home_community_id' = test.id('afton')::text and test.det()->'business'->>'primary_category_id' = test.id('catPlumb')::text, 'T8b: ids are included so the edit form can preselect them');
+
 -- lead stage
 select public.set_lead_stage(test.id('tenantA'), '00000000-0000-0000-0000-0000000000f1', 'interested');
 select test.ok(test.det()->'crm'->>'lead_stage' = 'interested', 'T9: stage set (row created)');

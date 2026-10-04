@@ -80,6 +80,64 @@ try {
   await page.getByText('Saved to the log.').waitFor();
   check(rpcs('add_communication').at(-1)?.body.p_body === 'Long note typed on a bad connection', 'retrying sends the same note');
 
+
+  // ---- edit page ----
+  await page.goto(`http://${host}:${port}/admin/businesses/${BIZ}/edit`);
+  await page.getByRole('heading', { name: 'Edit business', level: 1 }).waitFor();
+  check((await page.locator('#name').inputValue()) === 'Alpha Plumbing' && (await page.locator('#phone').inputValue()) === '(307) 555-0101', 'the edit form is prefilled');
+  check((await page.locator('#home_community_id').inputValue()) === BIZ && (await page.locator('#primary_category_id').inputValue()) === '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', 'community and category are preselected');
+  check(await page.getByText('(5/120)').isVisible(), 'the short-description counter shows the current length');
+  await page.locator('#short_description').fill('x'.repeat(30));
+  check(await page.getByText('(30/120)').isVisible(), 'the counter updates as you type');
+  // our own message (bypass the browser's native required-field popup)
+  await page.evaluate(() => { document.querySelector('form').noValidate = true; });
+  await page.locator('#name').fill('   ');
+  const beforeEdit = rpcs('update_business_fields').length;
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('alert').filter({ hasText: 'Name cannot be empty' }).waitFor();
+  check(rpcs('update_business_fields').length === beforeEdit, 'an empty name is refused before reaching the database');
+  await page.locator('#name').fill('Alpha Plumbing & Heating');
+  await page.locator('#website').fill('javascript:alert(1)');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('alert').filter({ hasText: 'Website must be a full address' }).waitFor();
+  check(rpcs('update_business_fields').length === beforeEdit && (await page.locator('#name').inputValue()) === 'Alpha Plumbing & Heating', 'a bad website is refused and the other typed values stay');
+  // database says no (readable rule message) -> shown, typed values kept
+  await page.locator('#website').fill('https://alpha.example');
+  state.failNext = { rpc: 'update_business_fields', status: 400, body: { code: '22023', message: 'description is limited to 1500 characters' } };
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('alert').filter({ hasText: 'Description is limited to 1500 characters.' }).waitFor();
+  check((await page.locator('#name').inputValue()) === 'Alpha Plumbing & Heating', 'a database rule message is shown and typed values are kept');
+  state.failNext = { rpc: 'update_business_fields', status: 500, body: { code: 'XX000', message: 'relation "secret_table" exploded' } };
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('alert').filter({ hasText: 'could not be saved' }).waitFor();
+  check(!(await page.content()).includes('secret_table'), 'an unexpected database error never leaks its message');
+  // success
+  await page.locator('#phone').fill('');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByText('Changes saved.').waitFor();
+  const e = rpcs('update_business_fields').at(-1)?.body;
+  check(e.p_business === BIZ && e.p_fields.name === 'Alpha Plumbing & Heating' && e.p_fields.phone === '' && e.p_fields.website === 'https://alpha.example', 'success: the RPC got the edited fields (empty phone = clear)');
+  check(!('status' in e.p_fields) && !('slug' in e.p_fields) && !('verification_level' in e.p_fields), 'the payload only contains editable fields');
+  check(page.url().endsWith(`/admin/businesses/${BIZ}?saved=1`) && await page.getByRole('heading', { name: 'Alpha Plumbing & Heating', level: 1 }).isVisible(), 'saving returns to the detail page, showing the new name');
+
+  // ---- publish / archive / restore ----
+  state.detail.business.status = 'prospect';
+  await page.goto(`http://${host}:${port}/admin/businesses/${BIZ}`);
+  check(await page.getByText('Hidden prospect (not public).').isVisible() && (await page.getByRole('link', { name: 'View public page' }).count()) === 0, 'a prospect is shown as hidden, with no public link');
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await page.getByText('Published. It is now on the public site.').waitFor();
+  check(rpcs('set_business_status').at(-1)?.body.p_status === 'unclaimed', 'Publish asks for status "unclaimed" (the database decides unclaimed vs claimed)');
+  await page.getByText('Live on the public site.').waitFor();
+  check(await page.getByRole('link', { name: 'View public page' }).isVisible(), 'after publishing the page shows it live, with a public link');
+  state.failNext = { rpc: 'set_business_status', status: 400, body: { code: '22023', message: 'end its paid listing and placements before archiving' } };
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await page.getByRole('alert').filter({ hasText: 'End its paid listing and placements before archiving.' }).waitFor();
+  check(await page.getByText('Live on the public site.').isVisible(), 'a refused archive explains why and changes nothing');
+  await page.getByRole('button', { name: 'Archive' }).click();
+  await page.getByText('Archived. It is no longer on the public site.').waitFor();
+  await page.getByRole('button', { name: 'Restore as prospect' }).waitFor();
+  check(true, 'after archiving the button becomes "Restore as prospect"');
+
   // ---- layout on a phone ----
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   check(overflow <= 0, 'no horizontal scroll at 390px');

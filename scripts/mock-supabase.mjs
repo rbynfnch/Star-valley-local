@@ -13,11 +13,11 @@ export const state = {
   rpc: [],            // [{ name, body }] every RPC call received
   lastList: null,
   listRows: [],
-  failNext: null,     // set to an rpc name to make its next call return a 500
+  failNext: null,     // an rpc name (next call returns 500) or { rpc, status, body } for a specific error response
   detail: null,       // set by scripts; null = business not found
 };
 export const freshDetail = () => ({
-  business: { id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing', status: 'unclaimed', community: 'Thayne', category: 'Plumbing', address_line1: '1 Main St', address_line2: null, city: 'Thayne', state: 'WY', postal_code: '83127',
+  business: { id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing', status: 'unclaimed', community: 'Thayne', category: 'Plumbing', home_community_id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', primary_category_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', address_line1: '1 Main St', address_line2: null, city: 'Thayne', state: 'WY', postal_code: '83127',
     phone: '(307) 555-0101', website: 'https://alpha.example', email: null, short_description: 'Pipes', description: null, hours_note: null, google_place_id: null, legal_name: null,
     verification_level: 'gold', verified_at: '2026-03-01T12:00:00Z', reverify_due_at: '2027-03-01T12:00:00Z', claimed_at: '2026-03-01T12:00:00Z', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' },
   provenance: [{ field: 'phone', source: 'owner', updated_at: '2026-03-02T12:00:00Z' }, { field: 'name', source: 'import', updated_at: '2026-01-01T12:00:00Z' }, { field: 'short_description', source: 'admin', updated_at: '2026-02-01T12:00:00Z' }],
@@ -40,7 +40,8 @@ export function startMock() {
       const json = (code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
       const rpc = /^\/rest\/v1\/rpc\/([a-z_]+)/.exec(req.url)?.[1];
       let args = {}; try { args = JSON.parse(body || '{}'); } catch { /* not json */ }
-      if (rpc) { state.rpc.push({ name: rpc, body: args }); if (state.failNext === rpc) { state.failNext = null; return json(500, { message: 'boom' }); } }
+      if (rpc) { state.rpc.push({ name: rpc, body: args }); const f = state.failNext;
+        if (f && (f === rpc || f.rpc === rpc)) { state.failNext = null; return typeof f === 'string' ? json(500, { message: 'boom' }) : json(f.status ?? 400, f.body ?? { message: 'boom' }); } }
       if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }) : json(401, { msg: 'invalid' });
       if (rpc === 'my_staff_role') return json(200, u?.role ?? null);
       if (rpc === 'admin_dashboard_counts') return !u?.role ? json(403, { code: '42501', message: 'staff only' }) : json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11 });
@@ -56,6 +57,15 @@ export function startMock() {
         if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' });
         state.detail?.communications.unshift({ id: 'm' + state.rpc.length, kind: args.p_kind, outcome: args.p_outcome, subject: args.p_subject, body: args.p_body, follow_up_at: args.p_follow_up_at, occurred_at: new Date().toISOString(), by_me: true });
         return json(200, 'new-id');
+      }
+      if (rpc === 'update_business_fields') {
+        if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' });
+        for (const [k, v] of Object.entries(args.p_fields ?? {})) state.detail.business[k] = v === '' ? null : v;
+        return json(200, null);
+      }
+      if (rpc === 'set_business_status') {
+        if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' });
+        state.detail.business.status = args.p_status; return json(200, args.p_status);
       }
       if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: BIZ, name: 'Thayne' }]);
       if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Plumbing' }]);
