@@ -19,7 +19,8 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/admin">)
         </div>
         <nav aria-label="Admin" className="mx-auto w-full max-w-6xl px-4 pb-2 text-sm">
           <ul className="flex flex-wrap gap-4">
-            {areas.includes("dashboard") && <li><a href="/admin" aria-current="page" className="font-semibold underline underline-offset-4">Dashboard</a></li>}
+            {areas.includes("dashboard") && <li><a href="/admin" className="underline-offset-4 hover:underline">Dashboard</a></li>}
+            {areas.includes("businesses") && <li><a href="/admin/businesses" className="underline-offset-4 hover:underline">Businesses</a></li>}
           </ul>
         </nav>
       </header>

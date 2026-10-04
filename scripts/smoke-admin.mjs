@@ -4,6 +4,9 @@
 //   NEXT_PUBLIC_SUPABASE_URL=http://localhost:54399 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon npm run dev -- -p 3101
 //   node scripts/smoke-admin.mjs [appPort] [host]
 import http from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const run = promisify(execFile);   // async: the mock server lives in THIS process and must keep answering
 
 const port = process.argv[2] ?? '3101';
 const host = process.argv[3] ?? 'star-valley.localhost';
@@ -13,7 +16,9 @@ let failed = 0;
 const check = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} - ${m}`); if (!c) failed++; };
 
 const USERS = { 'tok-sales': { id: 'u-sales', email: 'sales@example.test', role: 'sales' }, 'tok-editor': { id: 'u-editor', email: 'editor@example.test', role: 'editor' }, 'tok-rando': { id: 'u-rando', email: 'rando@example.test', role: null } };
-const calls = [];
+const calls = []; let lastList = null; let listRows = [
+  { id: 'b1', slug: 'a', name: 'Alpha Plumbing', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Thayne', category: 'Plumbing', lead_stage: 'interested', tier: 'enhanced', featured: true },
+  { id: 'b2', slug: 'b', name: 'Bravo Cafe', status: 'prospect', phone: null, verification_level: 'none', community: null, category: null, lead_stage: 'new', tier: 'free', featured: false }];
 const mock = http.createServer((req, res) => {
   const tok = (req.headers.authorization ?? '').replace('Bearer ', '');
   const u = USERS[tok];
@@ -26,6 +31,12 @@ const mock = http.createServer((req, res) => {
       if (!u?.role) return json(403, { code: '42501', message: 'staff only' });
       return json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11 });
     }
+    if (req.url.startsWith('/rest/v1/rpc/admin_list_businesses')) {
+      if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+      lastList = JSON.parse(body || '{}'); return json(200, { total: listRows.length === 0 ? 0 : 60, rows: listRows });
+    }
+    if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Thayne' }]);
+    if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', name: 'Plumbing' }]);
     json(404, {});
   });
 });
@@ -67,8 +78,40 @@ try {
   r = await get('/admin/login?next=https://evil.example');
   check(/name="next" value="\/admin"/.test(r.body), 'login ignores an off-site next');
 
+  // ---- business list ----
+  r = await get('/admin/businesses');
+  check(r.status === 307 && r.loc === '/admin/login?next=%2Fadmin%2Fbusinesses', 'signed out: the list redirects to login');
+  r = await get('/admin/businesses', 'tok-editor');
+  check(r.status === 307 && r.loc === '/admin', 'editor has no access to the business list (back to the dashboard)');
+  r = await get('/admin/businesses', 'tok-sales');
+  const lt = text(r.body);
+  check(r.status === 200 && /Alpha Plumbing/.test(lt) && /Bravo Cafe/.test(lt), 'sales: the list shows the rows');
+  check(/60 businesses/.test(lt) && /Page 1 of 3/.test(lt), 'shows the total and "Page 1 of 3" (25 per page)');
+  check(/Gold verified/.test(lt) && /Not verified/.test(lt) && /Featured/.test(lt) && /Lead: Interested/.test(lt), 'badges are written out in words, not colour alone');
+  check(lastList.p_offset === 0 && lastList.p_limit === 25 && lastList.p_status === null, 'default filters reach the RPC unchanged');
+  check(/href="tel:3075550101"/.test(r.body), 'phone numbers are tap-to-call on mobile');
+  check(/<label[^>]*for="q"/.test(r.body) && /<label[^>]*for="stage"/.test(r.body) && /<label[^>]*for="verified"/.test(r.body), 'every filter has a label');
+  check(/<nav[^>]*aria-label="Pagination"/.test(r.body) && /rel="next"/.test(r.body) && !/rel="prev"/.test(r.body), 'pagination: Next on page 1, no Previous');
+
+  r = await get('/admin/businesses?status=prospect&tier=enhanced&stage=lead&verified=yes&page=2&community=3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b&category=%27%3B--&q=roof', 'tok-sales');
+  check(lastList.p_status?.[0] === 'prospect' && lastList.p_tier === 'enhanced' && lastList.p_stage === null && lastList.p_verified === true && lastList.p_offset === 25 && lastList.p_q === 'roof', 'valid filters are forwarded, the invalid stage is dropped, page 2 = offset 25');
+  check(lastList.p_community === '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b' && lastList.p_category === null, 'a real id is kept; a hostile category id is dropped');
+  check(/rel="prev"/.test(r.body) && /Page 2 of 3/.test(text(r.body)), 'page 2 has Previous');
+  check(/value="roof"/.test(r.body), 'the search box keeps what was typed');
+  r = await get('/admin/businesses?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E', 'tok-sales');
+  check(!/<script>alert\(1\)<\/script>/.test(r.body) && /&lt;script&gt;/.test(r.body), 'search text is escaped when shown');
+  listRows = [];
+  r = await get('/admin/businesses?q=zzz', 'tok-sales');
+  check(/No businesses match these filters/.test(r.body) && /0 businesses match/.test(text(r.body)), 'empty result has a clear message');
+  check(/href="\/admin\/businesses"[^>]*>Clear/.test(r.body), 'filtered view offers Clear');
+
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
+  if (process.argv.includes('--layout')) {   // real-browser layout of the admin pages, signed in against the mock
+    listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
+    try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-sales') }, timeout: 240000 })).stdout); }
+    catch (e) { console.log(e.stdout ?? ''); failed++; }
+  }
 } finally { mock.close(); }
 
 if (failed) { console.error(`\n${failed} admin smoke check(s) failed`); process.exit(1); }

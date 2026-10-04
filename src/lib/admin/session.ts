@@ -2,7 +2,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getTenant } from "@/lib/tenant/resolve";
 import { authConfigured, createUserClient } from "@/lib/supabase/server";
-import type { StaffRole } from "./access";
+import { canAccess, type AdminArea, type StaffRole } from "./access";
 
 const ROLES: readonly string[] = ["admin", "sales", "editor"];
 
@@ -30,3 +30,10 @@ export const requireStaff = cache(async (): Promise<StaffContext> => {
   if (error || typeof role !== "string" || !ROLES.includes(role)) redirect("/admin/login?denied=1");
   return { userId: user.id, email: user.email ?? null, tenant, role: role as StaffRole };
 });
+
+/** requireStaff plus an area check. A signed-in staff member without access goes back to the dashboard. */
+export async function requireArea(area: AdminArea): Promise<StaffContext> {
+  const staff = await requireStaff();
+  if (!canAccess(staff.role, area)) redirect("/admin");
+  return staff;
+}

@@ -74,6 +74,7 @@ Notes:
 | `…1600_business_profile` | `business_profile(tenant, slug)` returns one jsonb document and is the single place that decides Free vs Enhanced: Free gets logo + ONE photo, short description only, no email/services/links/FAQs/deals; Enhanced gets everything. security invoker, callable by anon, bound by RLS |
 | `…1700_import_businesses` | `import_businesses(tenant, rows)`: commits an approved CSV import. Always creates **prospects** (hidden), writes with source `import` so owner/admin edits survive re-imports, re-checks duplicates at write time, suffixes colliding slugs, and reports per row (created / updated / skipped_duplicate / error). security invoker: sales staff and service_role only |
 | `…1800_admin_dashboard` | `admin_dashboard_counts(tenant)` (the six CLAUDE.md §8 counts; staff only, errors for anyone else) and `my_staff_role(tenant)` (the caller's own role; platform admins are admin) |
+| `…1900_admin_business_list` | `admin_list_businesses(...)`: staff list with filters (status, community, category, tier, lead stage, verified), name/phone search with literal `%`/`_`, stable paging. Sales and admin only (editors are refused: CRM data). Missing CRM row = stage `new`; tier is `enhanced` only while a listing is live |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -357,3 +358,7 @@ columns and the Premium tier.
 - Email + password via Supabase Auth, cookie sessions through `@supabase/ssr` (approved dependency). No public sign-up.
 - Not verified against a real Supabase project: only against a mock (`npm run smoke:admin`) and the SQL tests. First thing to do once a project exists: sign in for real.
 - Login has no CAPTCHA or app-level rate limit yet (Supabase Auth applies its own limits); add Turnstile before launch.
+
+## Admin business list (admin slice, part 3)
+- `/admin/businesses`: GET filter form, table on desktop and cards on mobile (field sales), tap-to-call phones, 25 per page. Names are not links yet: business detail is the next page.
+- Filters come from the URL and are validated (`src/lib/admin/list-params.ts`); anything unrecognised is dropped before it reaches the database.
