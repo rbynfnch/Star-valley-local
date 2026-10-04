@@ -91,16 +91,33 @@ Behavior the database guarantees:
 - **Delivery webhooks** (bounce, complaint) should insert into `suppressions` with `reason` `bounce` or
   `complaint`.
 
-Not decided yet: the provider (Resend or Postmark), and the email copy.
+**Provider: Postmark** (decided). The worker sends through the **business server's transactional stream**
+(`POSTMARK_BUSINESS_SERVER_TOKEN`, `POSTMARK_BUSINESS_STREAM`). The resident newsletter will use the separate
+consumer server's broadcast stream. Not decided yet: the email copy.
 
-### Provider caveat: cold outreach
+**Postmark webhook -> `suppressions`.** Point a Postmark webhook (basic auth: `POSTMARK_WEBHOOK_USER` /
+`POSTMARK_WEBHOOK_PASSWORD`) at a backend route that inserts into `suppressions`:
 
-`CLAUDE.md` §11 says cold B2B email is allowed in the US under CAN-SPAM. That is a **legal** statement. Both
-Resend and Postmark prohibit sending to people who have not opted in in their **acceptable use policies**, and
-may suspend the account. Everything in this document is a service email to a business that claimed its
-listing, which is fine. The V3 **campaign engine** (emailing unclaimed businesses) is a different matter and
-should not run on the same account, because a suspension would also stop these notices. See PROPOSAL.md
-item 14.
+| Postmark event | `suppressions.reason` | Blocks service mail? |
+|---|---|---|
+| Hard bounce | `bounce` | yes |
+| Spam complaint | `complaint` | yes |
+| Unsubscribe (newsletter / broadcast) | `unsubscribe`, `audience = 'consumer'` | no (service mail is not marketing) |
+
+Also update `notifications.status` / `message_deliveries.status` from delivery, open and click events if you
+want delivery tracking.
+
+### Cold outreach is separate (decided)
+
+`CLAUDE.md` §11 says cold B2B email is allowed in the US under CAN-SPAM. That is a **legal** statement, but
+Postmark's acceptable use policy prohibits emailing people who have not opted in, and a suspension would also
+stop these service notices. So **cold outreach to unclaimed businesses (the V3 campaign engine) runs through a
+different provider on a separate domain.** Requirements for that integration, whichever provider is chosen:
+- check `app.email_is_suppressed(tenant, email, 'business')` before every send;
+- write unsubscribes, bounces and complaints back into `suppressions` (shared across all providers);
+- log sends in `message_deliveries` with that provider's name in `provider`;
+- include the tenant's physical address and a working unsubscribe link (CAN-SPAM);
+- never mix with the Postmark domains, so a reputation problem there cannot reach the service mail.
 
 ## Credits when a placement ends early
 

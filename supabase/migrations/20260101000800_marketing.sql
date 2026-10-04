@@ -125,6 +125,8 @@ create table public.message_deliveries (
   email       text not null,
   newsletter_id uuid,
   campaign_recipient_id uuid references public.campaign_recipients on delete set null,
+  provider    text not null default 'postmark',        -- 'postmark' = service + newsletter mail; cold outreach uses a
+                                                       -- different provider and is logged here with its own value
   provider_message_id text,
   status      public.delivery_status not null default 'queued',
   created_at  timestamptz not null default now(),
@@ -151,6 +153,9 @@ create table public.social_posts (              -- draft + approve; no direct Me
   check (status in ('draft', 'rejected') or approved_by is not null)
 );
 
+-- NOTE: `suppressions` is provider-agnostic on purpose. Every sender, including the separate cold-outreach
+-- provider, must check app.email_is_suppressed() and record opt-outs/bounces here, so an unsubscribe is honored
+-- no matter which system sent the mail.
 -- Consumer newsletter subscribers must never be sent business mail and vice versa: enforced in the
 -- send path by selecting recipients per audience and excluding `suppressions`. This helper is the
 -- single place that decides eligibility.

@@ -188,7 +188,7 @@ cannot read or write another's rows; anon cannot forge analytics.
 ## 5. Tests
 
 `supabase/tests/run.sh` creates a fresh database, loads a tiny Supabase stub (`auth.uid()`, roles),
-applies every migration, then runs the suites. **349 assertions, all pass on Postgres 16.14.**
+applies every migration, then runs the suites. **352 assertions, all pass on Postgres 16.14.**
 
 | Suite | Covers |
 |---|---|
@@ -268,22 +268,23 @@ columns and the Premium tier.
 13. **Credit the business** when a paid placement ends early because verification lapsed: pro-rata for the
     unused time, as an `account_credits` ledger staff apply by hand in V1. Implemented.
 
+### Decided (round 5)
+10. **Email provider: Postmark.** Two servers on two sending subdomains: business (transactional stream, service
+    notices and staff alerts) and consumer (broadcast stream, opt-in newsletter). Webhooks feed `suppressions`.
+14. **Cold B2B outreach runs through a different provider, on a separate domain.** Postmark's policy forbids
+    emailing people who have not opted in, and a suspension would stop the service notices. `CLAUDE.md` §11 is
+    amended accordingly: cold B2B is legal, but not on the service-email provider. Requirements for that future
+    integration are in `docs/NOTIFICATIONS.md`. The provider itself is chosen before V3 (new paid service: I
+    ask first). `message_deliveries.provider` and the provider-agnostic `suppressions` table support this.
+
 ### Still open
-10. **Email provider: Resend or Postmark?** See the comparison given in chat; recommendation is Postmark. Not
-    blocking until the email worker is built.
-14. **Cold B2B outreach conflicts with provider rules.** `CLAUDE.md` §11 says cold B2B email is allowed in the
-    US. That is true legally, but Resend's and Postmark's acceptable use policies both prohibit emailing
-    people who have not opted in, and either can suspend the account, which would also stop our service
-    emails. Proposal: keep cold outreach off the service-email provider entirely. V1 outreach is in person,
-    phone, postcard and DM anyway; if V3 adds email prospecting, use a provider built for it on a separate
-    domain (a new paid service, so I would ask first).
 15. **Recurring Featured subscriptions need cancelling when a placement ends early.** The database ends the
     placement and credits the business, but cannot cancel the Stripe subscription. The backend (or staff) must,
     or the customer keeps being billed. Needs an owner: backend job, or a staff checklist item in V1?
 
 ## 8. Next steps
 
-1. Decide items 10, 14 and 15 (none block the next slice).
+1. Decide item 15 (who cancels recurring Stripe subscriptions when a placement ends early). Doesn't block the next slice.
 2. Run the migrations, seed and suites against a real Supabase project (`supabase db reset`). Not yet done:
    this container has no Supabase CLI. This also confirms `pg_cron` scheduling, which the local harness skips.
 3. Scaffold Next.js, extract design tokens from the mockups (`tenants.theme` is intentionally empty until

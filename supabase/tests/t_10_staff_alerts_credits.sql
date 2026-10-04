@@ -134,6 +134,13 @@ select test.as_root();
 select test.ok((select status = 'applied' and applied_at is not null from public.account_credits where business_id = test.gid('c1')), 'C7: admin marks a credit applied (timestamped)');
 select test.throws($$update public.account_credits set amount_cents = 1 where business_id = test.gid('c1')$$, 'C7: the amount is immutable (audit trail)', '42501');
 
+-- delivery log records which provider sent a message (Postmark vs the separate cold-outreach provider)
+insert into public.message_deliveries (tenant_id, audience, email) values (test.id('tenantA'), 'business', 'x@example.test');
+insert into public.message_deliveries (tenant_id, audience, email, provider) values (test.id('tenantA'), 'business', 'y@example.test', 'cold-outreach-provider');
+select test.ok((select provider from public.message_deliveries where email = 'x@example.test') = 'postmark', 'delivery log defaults to Postmark');
+select test.ok((select provider from public.message_deliveries where email = 'y@example.test') = 'cold-outreach-provider', 'delivery log can record another provider');
+select test.ok(app.email_is_suppressed(test.id('tenantA'), 'nobody@example.test', 'business') = false, 'suppression check is provider-agnostic and callable by any sender');
+
 -- restore default inventory limits
 update public.placement_limits set max_slots = case slot_type when 'homepage' then 6 when 'category' then 3 when 'community' then 4 else 6 end
  where tenant_id = test.id('tenantA');
