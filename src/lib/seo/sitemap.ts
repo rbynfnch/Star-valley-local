@@ -4,13 +4,14 @@
 import { countFor, isIndexable } from "../directory/hub.ts";
 import type { Category, Community, CountRow } from "../directory/types.ts";
 
-export function sitemapPaths(categories: Category[], communities: Community[], counts: CountRow[]): string[] {
+export function sitemapPaths(categories: Category[], communities: Community[], counts: CountRow[], businessSlugs: string[] = []): string[] {
   const paths = ["/", "/businesses"];
   for (const m of communities) if (isIndexable(countFor(counts, null, m.id))) paths.push(`/communities/${m.slug}`);
   for (const c of categories) {
     if (isIndexable(countFor(counts, c.id, null))) paths.push(`/categories/${c.slug}`);
     for (const m of communities) if (isIndexable(countFor(counts, c.id, m.id))) paths.push(`/categories/${c.slug}/${m.slug}`);
   }
+  for (const slug of businessSlugs) paths.push(`/business/${slug}`);   // every PUBLIC business has a profile worth indexing, however small
   return paths;
 }
 

@@ -27,3 +27,6 @@ npm-debug.log*
 
 # dev-only snapshot exported from a seeded local database (npm run fixtures)
 .fixtures/
+
+# dev-only copy of supabase/seed-media (npm run demo:media)
+/public/demo-media/

@@ -15,7 +15,9 @@
     "smoke": "node scripts/smoke-home.mjs",
     "smoke:directory": "node scripts/smoke-directory.mjs",
     "check:layout": "node scripts/check-layout.mjs",
-    "smoke:hubs": "node scripts/smoke-hubs.mjs"
+    "smoke:hubs": "node scripts/smoke-hubs.mjs",
+    "demo:media": "node scripts/demo-media.mjs",
+    "smoke:profile": "node scripts/smoke-profile.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

@@ -226,3 +226,82 @@ select test.ok((select count(*) from public.search_businesses((select id from pu
 select test.ok(test.count($$select * from public.directory_counts(gen_random_uuid())$$) = 0, 'H12: another tenant has no counts');
 select test.ok((select string_agg(plural_name, ',' order by plural_name) from public.categories where slug in ('plumbing', 'roofing', 'electrical')) = 'Electricians,Plumbers,Roofers', 'H13: plural names are readable by anon');
 select test.as_root();
+
+-- =====================================================================================================
+-- public.business_profile(): the Free vs Enhanced rules, as ANON.
+-- =====================================================================================================
+create function test.prof(slug text) returns jsonb language sql stable as $$
+  select public.business_profile((select id from public.tenants where slug = 'star-valley'), slug) $$;
+grant execute on function test.prof(text) to public;
+select test.as_anon();
+
+-- ENHANCED (Sample Valley Plumbing: paid Enhanced, Gold)
+select test.ok(test.prof('sample-valley-plumbing') ->> 'tier' = 'enhanced', 'B1: the plumber is Enhanced');
+select test.ok(jsonb_array_length(test.prof('sample-valley-plumbing') -> 'services') = 3
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'links') = 2
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'faqs') = 2
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'deals') = 1, 'B2: Enhanced shows 3 services, 2 social links, 2 FAQs and the live deal');
+select test.ok(test.prof('sample-valley-plumbing') -> 'business' ->> 'description' like 'Sample Valley Plumbing is a fictional%'
+               and test.prof('sample-valley-plumbing') -> 'business' ->> 'email' = 'hello@sample-valley-plumbing.example'
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'business' -> 'highlights') = 2, 'B3: Enhanced shows the long description, public email and highlights');
+select test.ok((test.prof('sample-valley-plumbing') ->> 'live_placement')::boolean, 'B4: the Featured plumber has a live placement');
+select test.ok(test.prof('sample-valley-plumbing') -> 'business' ->> 'verification_level' = 'gold'
+               and test.prof('sample-valley-plumbing') -> 'business' ->> 'verified_at' is not null
+               and test.prof('sample-valley-plumbing') -> 'business' ->> 'reverify_due_at' is not null, 'B5: a verified business exposes both dates (the page shows them only because it is verified)');
+
+-- FREE (Sample Creekside Cafe: Green, no listing) hides every Enhanced field
+select test.ok(test.prof('sample-creekside-cafe') ->> 'tier' = 'free', 'B6: the cafe is Free');
+select test.ok(test.prof('sample-creekside-cafe') -> 'business' -> 'description' = 'null'::jsonb
+               and test.prof('sample-creekside-cafe') -> 'business' -> 'email' = 'null'::jsonb
+               and test.prof('sample-creekside-cafe') -> 'business' -> 'highlights' = '[]'::jsonb, 'B7: Free hides the long description, email and highlights even though they are stored');
+select test.ok(test.prof('sample-creekside-cafe') -> 'services' = '[]'::jsonb and test.prof('sample-creekside-cafe') -> 'links' = '[]'::jsonb
+               and test.prof('sample-creekside-cafe') -> 'faqs' = '[]'::jsonb and test.prof('sample-creekside-cafe') -> 'deals' = '[]'::jsonb, 'B8: Free has no services, social links, FAQs or deals');
+select test.ok(test.prof('sample-creekside-cafe') -> 'business' ->> 'short_description' = 'Breakfast, coffee and baked goods.'
+               and test.prof('sample-creekside-cafe') -> 'business' ->> 'phone' is not null and test.prof('sample-creekside-cafe') -> 'business' ->> 'address_line1' is not null
+               and jsonb_array_length(test.prof('sample-creekside-cafe') -> 'hours') = 5, 'B9: Free keeps what CLAUDE.md allows: short description, phone, address, hours');
+select test.ok(not (test.prof('sample-creekside-cafe') ->> 'live_placement')::boolean, 'B10: a business without a placement is not marked Featured');
+select test.ok(test.prof('sample-smile-dental') -> 'business' ->> 'verification_level' = 'none'
+               and test.prof('sample-smile-dental') -> 'business' -> 'verified_at' = 'null'::jsonb and test.prof('sample-smile-dental') -> 'business' -> 'reverify_due_at' = 'null'::jsonb, 'B11: an unclaimed business has no verification dates to show');
+
+-- absent or hidden businesses
+select test.ok(test.prof('no-such-business') is null, 'B12: an unknown slug returns NULL (the page 404s)');
+select test.ok(test.prof('sample-prospect-welding') is null, 'B13: a prospect is invisible: NULL');
+select test.ok(public.business_profile(gen_random_uuid(), 'sample-valley-plumbing') is null, 'B14: the right slug under another tenant returns NULL');
+select test.ok(test.prof('Sample-Valley-Plumbing') is null and test.prof('sample-valley-plumbing; drop table x') is null and test.prof('') is null and test.prof(null) is null, 'B15: slugs are matched exactly; odd input just finds nothing');
+
+-- the keys: nothing internal ever leaves the database
+select test.ok((select array_agg(k order by k collate "C") from jsonb_object_keys(test.prof('sample-valley-plumbing')) k)
+               = array['business','category_ids','deals','faqs','hours','links','live_placement','photos','service_area_community_ids','services','tier'], 'B16: the top-level keys are exactly the documented ones');
+select test.ok((select array_agg(k order by k collate "C") from jsonb_object_keys(test.prof('sample-valley-plumbing') -> 'business') k)
+               = array['address_line1','address_line2','city','description','email','highlights','home_community_id','hours_note','id','name','phone','postal_code','price_range',
+                       'primary_category_id','reverify_due_at','short_description','slug','state','status','verification_level','verified_at','website'], 'B17: the business keys are exactly the documented ones: no legal name, coordinates, place id, created_by or source');
+select test.ok(not (test.prof('sample-valley-plumbing')::text ~* '"(rating|reviews?|review_count|distance|is_open|open_now|source|created_by|updated_by|lat|lng|google_place_id|legal_name)"'), 'B18: no rating, review, distance, open-now, provenance or coordinate field anywhere in the payload');
+select test.ok((select bool_and(h ->> 'day_of_week' between '0' and '6') from jsonb_array_elements(test.prof('sample-valley-plumbing') -> 'hours') h)
+               and (select array_agg((h ->> 'day_of_week')::int) from jsonb_array_elements(test.prof('sample-valley-plumbing') -> 'hours') h) = array[1,2,3,4,5], 'B19: hours come back as structured per-day ranges, in day order');
+select test.ok((select array_agg(c ->> 0 order by c ->> 0) from jsonb_array_elements(test.prof('sample-valley-plumbing') -> 'service_area_community_ids') c) is not null
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'service_area_community_ids') = 10, 'B20: the plumber serves the other 10 communities');
+select test.as_root();
+
+-- photos (seeded) and a lapsing listing (changes are rolled back)
+begin;
+select test.as_anon();
+select test.ok(jsonb_array_length(test.prof('sample-valley-plumbing') -> 'photos') = 5, 'B21: Enhanced shows every photo: logo, cover and 3 gallery');
+select test.ok((select array_agg(p ->> 'role') from jsonb_array_elements(test.prof('sample-valley-plumbing') -> 'photos') p) = array['logo', 'cover', 'gallery', 'gallery', 'gallery'], 'B22: photos are ordered logo, cover, then gallery');
+select test.ok((select array_agg(p ->> 'role') from jsonb_array_elements(test.prof('sample-creekside-cafe') -> 'photos') p) = array['cover'], 'B23: Free shows ONE photo (the cover) of the 4 it has, not the 3 gallery photos');
+select test.as_root();
+insert into public.media_assets (tenant_id, business_id, storage_path, alt_text) select tenant_id, id, 'demo/cafe-logo.png', 'cafe logo' from public.businesses where slug = 'sample-creekside-cafe';
+insert into public.business_photos (tenant_id, business_id, media_asset_id, role) select m.tenant_id, m.business_id, m.id, 'logo' from public.media_assets m where m.storage_path = 'demo/cafe-logo.png';
+select test.as_anon();
+select test.ok((select array_agg(p ->> 'role') from jsonb_array_elements(test.prof('sample-creekside-cafe') -> 'photos') p) = array['logo', 'cover'], 'B23b: with a logo, Free shows the logo plus ONE photo');
+select test.as_root();
+update public.listings set status = 'cancelled' where business_id = (select id from public.businesses where slug = 'sample-valley-plumbing');
+select test.as_anon();
+select test.ok(test.prof('sample-valley-plumbing') ->> 'tier' = 'free'
+               and test.prof('sample-valley-plumbing') -> 'services' = '[]'::jsonb and test.prof('sample-valley-plumbing') -> 'deals' = '[]'::jsonb
+               and test.prof('sample-valley-plumbing') -> 'business' -> 'description' = 'null'::jsonb
+               and jsonb_array_length(test.prof('sample-valley-plumbing') -> 'photos') = 2, 'B24: the moment the listing is cancelled the profile drops to Free: services, deals, description gone, photos limited');
+select test.as_root();
+rollback;
+select test.as_anon();
+select test.ok(test.prof('sample-valley-plumbing') ->> 'tier' = 'enhanced', 'B25: (rolled back) the plumber is Enhanced again');
+select test.as_root();

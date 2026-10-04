@@ -22,6 +22,8 @@ const PAGES = [
     { sel: 'input[name="community"]', min: 1024 }, { sel: 'input[name="verified"]', min: 1024 },
     { sel: 'aside summary', min: 0, hiddenAt: 1024 },
   ] },
+  { path: '/business/sample-valley-plumbing', visible: [{ sel: 'h1', min: 0 }, { sel: '#services', min: 0 }, { sel: '#photos', min: 0 }, { sel: '#faqs', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }] },
+  { path: '/business/sample-creekside-cafe', visible: [{ sel: 'h1', min: 0 }, { sel: '#about', min: 0 }] },
 ];
 
 const findChrome = () => {

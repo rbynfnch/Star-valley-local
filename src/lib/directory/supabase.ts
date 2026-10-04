@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cols } from "./queries.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, ProfileRaw, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // Production implementation: the anonymous (public) key only. Flat selects, no relationship embedding, so every
 // query maps 1:1 to a table/columns the anon role can read (verified by anon-access.test.ts).
@@ -51,6 +51,20 @@ export function supabaseDirectory(url = process.env.NEXT_PUBLIC_SUPABASE_URL, ke
       const ids = [...new Set(placements.map((p) => p.business_id))];
       if (ids.length === 0) return [];
       return ok(await db.from("businesses").select(cols("businesses")).eq("tenant_id", tenantId).in("id", ids), "businesses") as unknown as BusinessRow[];
+    },
+    async businessProfile(tenantId, slug): Promise<ProfileRaw | null> {
+      const r = await db.rpc("business_profile", { p_tenant: tenantId, p_slug: slug });
+      if (r.error) throw new Error(`business_profile: ${r.error.message}`);
+      return (r.data as unknown as ProfileRaw | null) ?? null;
+    },
+    async businessSlugs(tenantId) {
+      const out: string[] = [];
+      for (let from = 0; from < 100_000; from += 1000) {                       // PostgREST returns at most 1000 rows per request
+        const rows = ok(await db.from("businesses").select("slug").eq("tenant_id", tenantId).order("slug").range(from, from + 999), "businesses") as unknown as { slug: string }[];
+        out.push(...rows.map((x) => x.slug));
+        if (rows.length < 1000) break;
+      }
+      return out;
     },
     async counts(tenantId): Promise<CountRow[]> {
       const r = await db.rpc("directory_counts", { p_tenant: tenantId });

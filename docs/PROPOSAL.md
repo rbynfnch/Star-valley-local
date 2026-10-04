@@ -71,6 +71,7 @@ Notes:
 | `…1300_grace_rls_cron` | RLS for those tables, `featured_at_risk` admin view, `pg_cron` schedule |
 | `…1400_credits` | `account_credits` ledger and pro-rata crediting when a paid placement is ended by a verification lapse |
 | `…1500_search` | `search_businesses()` (ranked full-text + fuzzy search, filters, paging, optional id list) and `directory_counts()` (businesses per category x community, for the SEO hubs); both security invoker, callable by anon, still bound by RLS |
+| `…1600_business_profile` | `business_profile(tenant, slug)` returns one jsonb document and is the single place that decides Free vs Enhanced: Free gets logo + ONE photo, short description only, no email/services/links/FAQs/deals; Enhanced gets everything. security invoker, callable by anon, bound by RLS |
 
 ### Decisions that implement `CLAUDE.md`
 
@@ -338,3 +339,10 @@ columns and the Premium tier.
 3. Scaffold Next.js, extract design tokens from the mockups (`tenants.theme` is intentionally empty until
    then), and build slice 2 (public directory).
 4. Slice 4 builds the email worker against `docs/NOTIFICATIONS.md`.
+
+## Business profile slice (decisions to confirm)
+- **Request a Quote is intentionally not rendered yet.** CLAUDE.md: never show a form whose submissions the owner won't receive. It ships with the lead route, Turnstile and the owner notification email.
+- **Free tier photos** = logo + one photo; Free hides the long description, highlights and public email (Enhanced-only). This is my reading of CLAUDE.md §6; please confirm.
+- Free vs Enhanced is enforced twice: in SQL (`business_profile`) and again in `buildProfileView`.
+- Verification dates show only when verified. No ratings, reviews, distance or "open now".
+- Links still pointing at pages not built yet: `/list-your-business?claim=`, `/suggest-update?business=`.

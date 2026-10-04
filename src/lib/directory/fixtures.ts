@@ -1,8 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { psqlJson } from "./psql.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, ProfileRaw, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
 // (`npm run fixtures`), so it shows exactly what the public could read. Never used in production (data.ts refuses).
@@ -38,33 +38,25 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
     // Runs the REAL public.search_businesses() as the anonymous role against the seeded local database, so dev and
     // production share one implementation. Values go in as psql variables (:'name' quotes them): never string-built.
     async searchBusinesses(id, q: SearchQuery): Promise<SearchResult> {
-      const db = process.env.SVL_FIXTURE_DB ?? "svl_seed";
       const arr = (a: (string | number)[]) => (a.length ? `{${a.join(",")}}` : "");
-      const sql = `begin; set local role anon;
-        select coalesce(jsonb_agg(t), '[]'::jsonb) from public.search_businesses(
+      const rows = psqlJson<(SearchRow & { total_count: number | string })[]>(
+        `select coalesce(jsonb_agg(t), '[]'::jsonb) from public.search_businesses(
           :'tenant'::uuid, :'q', nullif(:'comms', '')::uuid[], nullif(:'cats', '')::uuid[],
           :'verified'::boolean, :'featured'::boolean, :'deals'::boolean, :'quotes'::boolean,
           nullif(:'price', '')::smallint[], :'sort', :'lim'::int, :'off'::int,
-          case when :'ids_set'::int = 1 then :'ids'::uuid[] else null end) t;
-        rollback;`;
-      const v = (k: string, val: string) => ["-v", `${k}=${val}`];
-      const r = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-d", db,
-        ...v("tenant", id), ...v("q", q.q), ...v("comms", arr(q.communityIds)), ...v("cats", arr(q.categoryIds)),
-        ...v("verified", String(q.verified)), ...v("featured", String(q.featured)), ...v("deals", String(q.deals)), ...v("quotes", String(q.quotes)),
-        ...v("price", arr(q.price)), ...v("sort", q.sort), ...v("lim", String(q.limit)), ...v("off", String(q.offset)),
-        ...v("ids_set", q.ids === undefined ? "0" : "1"), ...v("ids", `{${(q.ids ?? []).join(",")}}`), "-f", "-"],
-        { input: sql, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-      if (r.status !== 0) throw new Error(`fixtures search failed: ${r.stderr}`);
-      const json = r.stdout.split("\n").find((l) => l.startsWith("["));
-      return splitSearchRows(JSON.parse(json ?? "[]") as (SearchRow & { total_count: number | string })[]);
+          case when :'ids_set'::int = 1 then :'ids'::uuid[] else null end) t`,
+        { tenant: id, q: q.q, comms: arr(q.communityIds), cats: arr(q.categoryIds), verified: String(q.verified), featured: String(q.featured),
+          deals: String(q.deals), quotes: String(q.quotes), price: arr(q.price), sort: q.sort, lim: String(q.limit), off: String(q.offset),
+          ids_set: q.ids === undefined ? "0" : "1", ids: `{${(q.ids ?? []).join(",")}}` });
+      return splitSearchRows(rows);
     },
+    async businessProfile(id, slug): Promise<ProfileRaw | null> {
+      return psqlJson<ProfileRaw | null>("select public.business_profile(:'tenant'::uuid, :'slug')::text::jsonb", { tenant: id, slug });
+    },
+    async businessSlugs(id) { return s.businesses.filter((b) => b.tenant_id === id).map((b) => b.slug).sort(); },
     async counts(id): Promise<CountRow[]> {
-      const db = process.env.SVL_FIXTURE_DB ?? "svl_seed";
-      const r = spawnSync("psql", ["-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-d", db, "-v", `tenant=${id}`, "-f", "-"], {
-        input: `begin; set local role anon; select coalesce(jsonb_agg(t), '[]'::jsonb) from public.directory_counts(:'tenant'::uuid) t; rollback;`, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-      if (r.status !== 0) throw new Error(`fixtures counts failed: ${r.stderr}`);
-      const json = r.stdout.split("\n").find((l) => l.startsWith("["));
-      return (JSON.parse(json ?? "[]") as CountRow[]).map((x) => ({ ...x, n: Number(x.n) }));
+      const rows = psqlJson<CountRow[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.directory_counts(:'tenant'::uuid) t", { tenant: id });
+      return rows.map((x) => ({ ...x, n: Number(x.n) }));
     },
     async livePlacements(id, slot, scopeIds) {
       const col = slot === "category" ? "category_id" : "community_id";

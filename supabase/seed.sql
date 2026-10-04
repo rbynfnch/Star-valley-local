@@ -190,6 +190,38 @@ from public.businesses b
 join (values ('sample-valley-plumbing','paid'), ('sample-high-country-roofing','paid'),
              ('sample-wind-river-outfitters','paid'), ('sample-valley-mercantile','founding_member')) v(slug, src) on v.slug = b.slug;
 
+-- Photos (placeholder images in supabase/seed-media; with the Supabase CLI, `[storage.buckets.media] objects_path = "./seed-media"`
+-- uploads them). The cafe is a FREE listing with a cover and three gallery photos: the profile shows only ONE of them.
+insert into public.media_assets (tenant_id, business_id, storage_bucket, storage_path, alt_text, width, height)
+select b.tenant_id, b.id, 'media', v.path, v.alt, v.w, v.h from public.businesses b
+join (values
+  ('sample-valley-plumbing', 'demo/plumber-logo.png',  'Sample Valley Plumbing logo', 200, 200),
+  ('sample-valley-plumbing', 'demo/plumber-cover.png', 'A plumbing van parked in front of a mountain', 1600, 500),
+  ('sample-valley-plumbing', 'demo/plumber-g1.png',    'Technician repairing a water heater', 800, 600),
+  ('sample-valley-plumbing', 'demo/plumber-g2.png',    'A freshly installed water heater', 800, 600),
+  ('sample-valley-plumbing', 'demo/plumber-g3.png',    'The crew at a job site', 800, 600),
+  ('sample-creekside-cafe',  'demo/cafe-cover.png',    'The cafe dining room in morning light', 1600, 500),
+  ('sample-creekside-cafe',  'demo/cafe-g1.png',       'A breakfast plate', 800, 600),
+  ('sample-creekside-cafe',  'demo/cafe-g2.png',       'Fresh baked goods', 800, 600),
+  ('sample-creekside-cafe',  'demo/cafe-g3.png',       'The patio', 800, 600)) v(slug, path, alt, w, h) on v.slug = b.slug;
+insert into public.business_photos (tenant_id, business_id, media_asset_id, role, sort_order)
+select m.tenant_id, m.business_id, m.id,
+       case when m.storage_path like '%logo%' then 'logo'::public.photo_role when m.storage_path like '%cover%' then 'cover'::public.photo_role else 'gallery'::public.photo_role end,
+       coalesce(nullif(substring(m.storage_path from 'g(\d)\.png$'), '')::int, 0)
+from public.media_assets m;
+
+-- Long descriptions, highlights and a public email are ENHANCED-only on the profile (the Free ones below stay short).
+update public.businesses set
+  description = 'Sample Valley Plumbing is a fictional business used to demonstrate an Enhanced profile. It offers residential and commercial plumbing, water heater installation and repair, drain cleaning and leak detection across Star Valley, with emergency service available.',
+  email = 'hello@sample-valley-plumbing.example', hours_note = 'Emergency service available 24/7'
+where slug = 'sample-valley-plumbing';
+update public.businesses set
+  description = 'Sample High Country Roofing is a fictional business. It repairs and replaces roofs and handles storm damage for homes and shops throughout the valley.',
+  email = 'office@sample-high-country-roofing.example'
+where slug = 'sample-high-country-roofing';
+update public.businesses set description = 'A fictional cafe. Because it is a FREE listing, this long description is NOT shown on its profile; only the short description is.',
+  email = 'hi@sample-creekside-cafe.example' where slug = 'sample-creekside-cafe';
+
 insert into public.business_services (tenant_id, business_id, name, sort_order)
 select b.tenant_id, b.id, v.name, v.ord from public.businesses b
 join (values ('sample-valley-plumbing','Water heaters',1), ('sample-valley-plumbing','Drain cleaning',2), ('sample-valley-plumbing','Leak detection',3),

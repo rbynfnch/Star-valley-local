@@ -19,6 +19,11 @@ test('a hub with exactly ONE listing is not listed (thin pages: one valley-wide 
   const p = sitemapPaths(categories, communities, counts);
   for (const thin of ['/categories/dentists', '/communities/thayne', '/categories/plumbing/afton', '/categories/plumbing/thayne', '/categories/dentists/afton']) assert.ok(!p.includes(thin), thin);
 });
+test('every public business profile is listed (even a thin one: a profile is the page people search for)', () => {
+  const p = sitemapPaths(categories, communities, counts, ['a-plumber', 'a-cafe']);
+  assert.ok(p.includes('/business/a-plumber') && p.includes('/business/a-cafe'));
+  assert.equal(sitemapPaths(categories, communities, counts).some((x) => x.startsWith('/business/')), false);
+});
 test('never lists a search or filter URL', () => assert.ok(!sitemapPaths(categories, communities, counts).some((x) => x.includes('?'))));
 test('XML is well-formed and escaped, with absolute URLs', () => {
   const x = buildSitemapXml('https://x.example', ['/', '/a&b', '/c<d>', '/e"f\'g']);

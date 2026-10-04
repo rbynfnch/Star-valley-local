@@ -13,8 +13,8 @@ export async function GET(request: Request) {
   const tenant = await resolveTenantFor(data, hostHeader, { isProduction, defaultSlug: process.env.DEFAULT_TENANT_SLUG });
   const origin = originFromRequest(normalizeHost(hostHeader) ? hostHeader : null, request.headers.get("x-forwarded-proto"), isProduction);
   if (!tenant || !origin) return new Response("Not found", { status: 404 });
-  const [categories, communities, counts] = await Promise.all([data.categories(tenant.id), data.communities(tenant.id), data.counts(tenant.id)]);
-  return new Response(buildSitemapXml(origin, sitemapPaths(categories, communities, counts)), {
+  const [categories, communities, counts, slugs] = await Promise.all([data.categories(tenant.id), data.communities(tenant.id), data.counts(tenant.id), data.businessSlugs(tenant.id)]);
+  return new Response(buildSitemapXml(origin, sitemapPaths(categories, communities, counts, slugs)), {
     headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" },
   });
 }
