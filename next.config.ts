@@ -9,6 +9,7 @@ if (supabaseUrl) {
   remotePatterns.push({ protocol: u.protocol.replace(":", "") as "http" | "https", hostname: u.hostname, ...(u.port ? { port: u.port } : {}), pathname: "/storage/v1/object/public/**" });
 }
 
-const nextConfig: NextConfig = { images: { remotePatterns } };
+// Photo uploads (up to 5 MB, checked again in the server action) travel inside a server action request; the default limit is 1 MB.
+const nextConfig: NextConfig = { images: { remotePatterns }, experimental: { serverActions: { bodySizeLimit: "6mb" } } };
 
 export default nextConfig;

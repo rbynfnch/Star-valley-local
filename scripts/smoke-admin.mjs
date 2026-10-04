@@ -9,7 +9,7 @@ const run = promisify(execFile);   // async: the mock server lives in THIS proce
 
 const port = process.argv[2] ?? '3101';
 const host = process.argv[3] ?? 'star-valley.localhost';
-import { BIZ, cookieFor, freshDetail, freshModRows, freshOverview, startMock, state } from './mock-supabase.mjs';
+import { BIZ, cookieFor, freshContent, freshDetail, freshModRows, freshOverview, startMock, state } from './mock-supabase.mjs';
 const base = `http://localhost:${port}`;
 let failed = 0;
 const check = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} - ${m}`); if (!c) failed++; };
@@ -117,6 +117,11 @@ try {
   r = await get(`/admin/businesses/${BIZ}/edit`, 'tok-sales');
   check(r.status === 200 && /Edit business/.test(text(r.body)) && /<label[^>]*for="website"/.test(r.body) && /<label[^>]*for="short_description"/.test(r.body), 'sales: the edit page renders with labelled fields');
   check(/href="\/admin\/businesses\/[0-9a-f-]+\/edit"/.test((await get(`/admin/businesses/${BIZ}`, 'tok-sales')).body), 'the detail page links to Edit');
+  state.content = freshContent();
+  check(/href="\/admin\/businesses\/[0-9a-f-]+\/content"/.test((await get(`/admin/businesses/${BIZ}`, 'tok-sales')).body), 'the detail page links to Edit content');
+  r = await get(`/admin/businesses/${BIZ}/content`); check(r.status === 307 && /login/.test(r.headers.get('location') ?? ''), 'content editor: signed out goes to sign-in');
+  r = await get(`/admin/businesses/${BIZ}/content`, 'tok-editor'); check(r.status === 307 && /\/admin$/.test(r.headers.get('location') ?? ''), 'content editor: an editor is sent to the dashboard');
+  r = await get(`/admin/businesses/${BIZ}/content`, 'tok-sales'); check(r.status === 200 && /Edit content/.test(r.body), 'content editor: sales can open it');
   r = await get(`/admin/businesses/${BIZ}?saved=1`, 'tok-sales');
   check(/Changes saved\./.test(text(r.body)), 'the saved banner shows after an edit');
 
@@ -161,7 +166,7 @@ try {
   r = await get('/businesses');
   check(r.status === 200 && !/x-robots-tag/i.test([...r.headers.keys()].join()), 'public pages are not affected by the admin proxy');
   if (process.argv.includes('--layout')) {
-    state.overview = freshOverview(); state.modRows = freshModRows(); state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200); state.detail.business.description = 'y'.repeat(300); state.detail.business.website = 'https://example.com/' + 'z'.repeat(150);   // real-browser layout of the admin pages, signed in against the mock
+    state.overview = freshOverview(); state.modRows = freshModRows(); state.content = freshContent(); state.content.services = ['W'.repeat(150)]; state.detail = freshDetail(); state.detail.business.name = 'Alpha Plumbing & Heating of Star Valley Ranch with an Unreasonably Long Name'; state.detail.communications[0].body = 'x'.repeat(200); state.detail.business.description = 'y'.repeat(300); state.detail.business.website = 'https://example.com/' + 'z'.repeat(150);   // real-browser layout of the admin pages, signed in against the mock
     state.listRows = [{ id: 'b1', slug: 'a', name: 'Alpha Plumbing & Heating of Star Valley Ranch', status: 'unclaimed', phone: '(307) 555-0101', verification_level: 'gold', community: 'Star Valley Ranch', category: 'Home & Property Services', lead_stage: 'interested', tier: 'enhanced', featured: true }];
     try { console.log((await run('node', ['scripts/check-layout.mjs', port, host], { env: { ...process.env, ADMIN_COOKIE: cookieFor('tok-admin') }, timeout: 240000 })).stdout); }
     catch (e) { console.log(e.stdout ?? ''); failed++; }

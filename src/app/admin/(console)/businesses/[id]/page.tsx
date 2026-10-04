@@ -68,6 +68,7 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
         <div className="flex flex-wrap gap-2 text-sm">
           {tel && <a href={tel} className="rounded-button border border-slate-600 px-3 py-1.5 font-medium text-link">Call {b.phone}</a>}
           <Link href={`/admin/businesses/${b.id}/edit`} className="rounded-button bg-brand px-3 py-1.5 font-semibold text-brand-contrast hover:bg-brand-hover">Edit</Link>
+          <Link href={`/admin/businesses/${b.id}/content`} className="rounded-button border border-slate-600 px-3 py-1.5 font-medium text-link">Edit content</Link>
           {published && <a href={`/business/${b.slug}`} target="_blank" rel="noopener" className="rounded-button border border-slate-600 px-3 py-1.5 font-medium text-link">View public page</a>}
         </div>
       </div>

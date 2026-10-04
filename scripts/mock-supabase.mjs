@@ -37,6 +37,9 @@ export const state = {
   imported: [],             // import_businesses row arrays received
   duplicateFor: [],   // submission ids whose business approval reports a duplicate until forced
   autoConfirm: false,
+  content: null,      // business_content payload (see freshContent)
+  storage: {},        // uploaded object path -> { type, size, auth }
+  storageRemoved: [], // object paths removed through the storage API
 };
 export const freshDetail = () => ({
   business: { id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing', status: 'unclaimed', community: 'Thayne', category: 'Plumbing', home_community_id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', primary_category_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', address_line1: '1 Main St', address_line2: null, city: 'Thayne', state: 'WY', postal_code: '83127',
@@ -52,6 +55,14 @@ export const freshDetail = () => ({
   opportunities: [{ id: 'o1', service: 'website', stage: 'proposal', value_cents: 250000, expected_close: '2026-11-01' }],
   communications: [{ id: 'm1', kind: 'visit', outcome: 'pitched', subject: 'Dropped by', body: 'Liked the badge <b>idea</b>', follow_up_at: null, occurred_at: '2026-10-01T16:00:00Z', by_me: true }],
   indicators: { has_website: true, has_social: false, has_google_profile: false },
+});
+
+export const freshContent = () => ({
+  enhanced: true, home_community_id: BIZ, primary_category_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', highlights: ['Family owned'], price_range: 2,
+  hours: [{ day: 1, opens: '08:00', closes: '17:00' }], services: ['Drain cleaning', 'Water heaters'], links: [{ kind: 'facebook', url: 'https://facebook.com/alpha' }],
+  faqs: [{ question: 'Free quotes?', answer: 'Yes.' }], community_ids: [], category_ids: [],
+  deals: [{ id: 'd0000000-0000-4000-8000-000000000001', title: '10% off first visit', description: null, terms: null, discount_type: 'percent', discount_value: 10, status: 'published', starts_at: '2026-07-01T06:00:00Z', ends_at: '2026-12-01T07:00:00Z' }],
+  photos: [{ id: 'f0000000-0000-4000-8000-000000000001', role: 'cover', caption: 'The shop', alt: 'Front of the shop', bucket: 'media', path: `a0000000-0000-4000-8000-000000000001/${BIZ}/cover.png`, width: 800, height: 600 }],
 });
 
 export const SUB_IDS = { update: '11111111-1111-4111-8111-111111111111', business: '22222222-2222-4222-8222-222222222222', event: '33333333-3333-4333-8333-333333333333', xss: '44444444-4444-4444-8444-444444444444' };
@@ -165,9 +176,57 @@ export function startMock() {
         state.detail?.communications.unshift({ id: 'm' + state.rpc.length, kind: args.p_kind, outcome: args.p_outcome, subject: args.p_subject, body: args.p_body, follow_up_at: args.p_follow_up_at, occurred_at: new Date().toISOString(), by_me: true });
         return json(200, 'new-id');
       }
+
+      // ---- content editor (staff only; the real rules are tested in SQL, the mock only stores what it is sent)
+      if (rpc && /^(business_content|set_business_(hours|services|links|faqs|areas)|save_deal|delete_deal|add_business_photo|update_business_photo|delete_business_photo|reorder_business_photos)$/.test(rpc)) {
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        const c = state.content;
+        if (rpc === 'business_content') return json(200, c);
+        if (rpc === 'set_business_hours') { c.hours = args.p_rows; return json(200, null); }
+        if (rpc === 'set_business_services') { c.services = args.p_names; return json(200, c.services.length); }
+        if (rpc === 'set_business_links') { c.links = args.p_items; return json(200, c.links.length); }
+        if (rpc === 'set_business_faqs') { c.faqs = args.p_items; return json(200, c.faqs.length); }
+        if (rpc === 'set_business_areas') { c.community_ids = args.p_community_ids; c.category_ids = args.p_category_ids; return json(200, null); }
+        if (rpc === 'save_deal') {
+          const row = { title: args.p_title, description: args.p_description, terms: args.p_terms, discount_type: args.p_discount_type, discount_value: args.p_discount_value, status: args.p_status, starts_at: args.p_starts_at ?? new Date().toISOString(), ends_at: args.p_ends_at };
+          if (args.p_id) { const d = c.deals.find((x) => x.id === args.p_id); if (!d) return json(404, { code: 'P0002', message: 'deal not found' }); Object.assign(d, row); return json(200, d.id); }
+          const id = 'd0000000-0000-4000-8000-' + String(c.deals.length + 10).padStart(12, '0'); c.deals.unshift({ id, ...row }); return json(200, id);
+        }
+        if (rpc === 'delete_deal') { const n = c.deals.length; c.deals = c.deals.filter((x) => x.id !== args.p_id); return c.deals.length === n ? json(404, { code: 'P0002', message: 'deal not found' }) : json(200, null); }
+        if (rpc === 'add_business_photo') {
+          let replaced = null;
+          if (args.p_role !== 'gallery') { const old = c.photos.find((x) => x.role === args.p_role); if (old) { replaced = { bucket: old.bucket, path: old.path }; c.photos = c.photos.filter((x) => x !== old); } }
+          const id = 'f0000000-0000-4000-8000-' + String(c.photos.length + 10).padStart(12, '0');
+          c.photos.push({ id, role: args.p_role, caption: args.p_caption, alt: args.p_alt || (args.p_role === 'logo' ? 'Alpha Plumbing logo' : null), bucket: args.p_bucket, path: args.p_path, width: args.p_width, height: args.p_height });
+          return json(200, { id, replaced });
+        }
+        if (rpc === 'update_business_photo') {
+          const p = c.photos.find((x) => x.id === args.p_photo); if (!p) return json(404, { code: 'P0002', message: 'photo not found' });
+          if (args.p_role !== p.role && args.p_role !== 'gallery') for (const o of c.photos) if (o.role === args.p_role) o.role = 'gallery';
+          Object.assign(p, { alt: args.p_alt, caption: args.p_caption, role: args.p_role }); return json(200, null);
+        }
+        if (rpc === 'delete_business_photo') { const p = c.photos.find((x) => x.id === args.p_photo); if (!p) return json(404, { code: 'P0002', message: 'photo not found' }); c.photos = c.photos.filter((x) => x !== p); return json(200, { bucket: p.bucket, path: p.path }); }
+        if (rpc === 'reorder_business_photos') { const g = args.p_ids.map((id) => c.photos.find((x) => x.id === id)); const rest = c.photos.filter((x) => !g.includes(x)); c.photos = [...rest.filter((x) => x.role !== 'gallery'), ...g]; return json(200, null); }
+      }
+      // ---- storage: upload (service key), remove, public read
+      if (req.url.startsWith('/storage/v1/')) {
+        if (req.method === 'POST' && req.url.startsWith('/storage/v1/object/media/')) {
+          const path = decodeURIComponent(req.url.slice('/storage/v1/object/media/'.length).split('?')[0]);
+          if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { message: 'not allowed' });
+          if (state.storage[path]) return json(409, { message: 'exists' });
+          state.storage[path] = { type: req.headers['content-type'], size: Number(req.headers['content-length'] ?? 0) }; return json(200, { Key: 'media/' + path });
+        }
+        if (req.method === 'DELETE' && req.url.startsWith('/storage/v1/object/media')) {
+          const a = JSON.parse(body || '{}'); for (const x of a.prefixes ?? []) { delete state.storage[x]; state.storageRemoved.push(x); } return json(200, []);
+        }
+        if (req.method === 'GET' && req.url.startsWith('/storage/v1/object/public/')) {
+          res.writeHead(200, { 'content-type': 'image/png' }); return res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
+        }
+        return json(404, {});
+      }
       if (rpc === 'update_business_fields') {
         if (salesOnly) return json(403, { code: '42501', message: 'sales staff only' });
-        for (const [k, v] of Object.entries(args.p_fields ?? {})) state.detail.business[k] = v === '' ? null : v;
+        for (const [k, v] of Object.entries(args.p_fields ?? {})) { if (k === 'highlights' || k === 'price_range') { if (state.content) state.content[k] = v; } else state.detail.business[k] = v === '' ? null : v; }
         return json(200, null);
       }
       if (rpc === 'set_business_status') {
@@ -180,8 +239,8 @@ export function startMock() {
         state.imported.push(args.p_rows);
         return json(200, args.p_rows.map((r, i) => r.name === 'Explode' ? { index: i + 1, result: 'error', message: 'new row for relation "businesses" violates check constraint' } : r.existing_id ? { index: i + 1, result: 'updated', id: r.existing_id } : { index: i + 1, result: 'created', id: crypto.randomUUID(), slug: r.slug }));
       }
-      if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: BIZ, slug: 'thayne', name: 'Thayne' }]);
-      if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', slug: 'plumbing', name: 'Plumbing', plural_name: 'Plumbers' }]);
+      if (req.url.startsWith('/rest/v1/communities')) return json(200, [{ id: BIZ, slug: 'thayne', name: 'Thayne' }, { id: 'c0000000-0000-4000-8000-000000000001', slug: 'alpine', name: 'Alpine' }, { id: 'c0000000-0000-4000-8000-000000000002', slug: 'afton', name: 'Afton' }]);
+      if (req.url.startsWith('/rest/v1/categories')) return json(200, [{ id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', slug: 'plumbing', name: 'Plumbing', plural_name: 'Plumbers' }, { id: 'd0000000-0000-4000-8000-0000000000c1', slug: 'hvac', name: 'Heating and cooling', plural_name: 'HVAC' }]);
       json(404, {});
     });
   });
