@@ -1,0 +1,167 @@
+-- Editorial CRUD: events, articles (with guide items), cover images, access.
+create function test.ca_n(q text) returns bigint language plpgsql security definer as $$ declare n bigint; begin execute q into n; return n; end $$;
+create function test.ca_msg(stmt text, pat text) returns boolean language plpgsql as $$ begin execute stmt; return false; exception when others then return sqlerrm like pat; end $$;
+create temp table ca_pk (k text primary key, j jsonb); grant all on ca_pk to public;
+create function test.ca_keep(k text, j jsonb) returns void language sql as $$ insert into ca_pk values (k, j) on conflict (k) do update set j = excluded.j $$;
+create function test.ca_k(k text) returns text language sql as $$ select j #>> '{}' from ca_pk where ca_pk.k = $1 $$;
+create function test.ta() returns uuid language sql as $$ select test.id('tenantA') $$;
+create function test.ev(id uuid, title text, status public.event_status default 'published', starts timestamptz default null, ends timestamptz default null, rrule text default null, until timestamptz default null, url text default null, comm uuid default null, cat uuid default null, org uuid default null, descr text default null, all_day boolean default false)
+  returns uuid language sql as $$ select public.save_event(test.ta(), id, title, descr, comm, cat, 'Hall', '1 Main St', coalesce(starts, now() + interval '3 days'), ends, all_day, rrule, until, url, org, status) $$;
+create function test.ar(id uuid, title text, status public.content_status default 'draft', slug text default null, body text default 'Body text here.', pub timestamptz default null, rank int default null, items jsonb default null, author text default null, cat uuid default null, excerpt text default null, spot uuid default null)
+  returns uuid language sql as $$ select public.save_article(test.ta(), id, title, slug, excerpt, body, cat, author, status, pub, rank, null, null, spot, items) $$;
+insert into public.event_categories (id, tenant_id, slug, name) values ('00000000-0000-0000-0000-0000000ca001', test.id('tenantA'), 'ca-fairs', 'Ca Fairs'), ('00000000-0000-0000-0000-0000000ca002', test.id('tenantB'), 'ca-other', 'Ca Other');
+insert into public.article_categories (id, tenant_id, slug, name) values ('00000000-0000-0000-0000-0000000ca101', test.id('tenantA'), 'ca-news', 'Ca News'), ('00000000-0000-0000-0000-0000000ca102', test.id('tenantB'), 'ca-bnews', 'Ca BNews');
+insert into public.businesses (id, tenant_id, slug, name, status, home_community_id, primary_category_id) values ('00000000-0000-0000-0000-0000000ca201', test.id('tenantA'), 'ca-biz', 'Ca Biz', 'unclaimed', test.id('afton'), test.id('catPlumb'));
+insert into public.businesses (id, tenant_id, slug, name, status, home_community_id, primary_category_id) values ('00000000-0000-0000-0000-0000000ca202', test.id('tenantB'), 'ca-bbiz', 'Ca BBiz', 'unclaimed', test.id('tcommB'), test.id('catB'));
+
+-- ===== access
+select test.as_user(test.id('salesA'));
+select test.throws($$select test.ev(null, 'x')$$, 'X1: sales staff cannot write events', '42501');
+select test.throws($$select test.ar(null, 'x')$$, 'X2: or articles', '42501');
+select test.as_user(test.id('owner1'));
+select test.throws($$select test.ev(null, 'x')$$, 'X3: an owner cannot', '42501');
+select test.as_user(test.id('adminB'));
+select test.throws($$select test.ev(null, 'x')$$, 'X4: another tenant''s admin cannot', '42501');
+select test.as_root(); set role anon;
+select test.throws($$select test.ev(null, 'x')$$, 'X5: anon cannot', '42501');
+select test.as_root();
+
+select test.as_user(test.id('editorA'));
+-- ===== events
+select test.ca_keep('e1', to_jsonb(test.ev(null, '  Fall Fair & Pie Social!  ', 'published', null, null, null, null, 'https://fair.example', test.id('afton'), '00000000-0000-0000-0000-0000000ca001', '00000000-0000-0000-0000-0000000ca201', 'Pies')));
+select test.as_root();
+select test.ok((select slug || '|' || title || '|' || status::text || '|' || (created_by = test.id('editorA'))::text from public.community_events where id = test.ca_k('e1')::uuid) = 'fall-fair-pie-social|Fall Fair & Pie Social!|published|true', 'E1: an event is created with a slug from its title, trimmed, by the editor');
+select test.as_user(test.id('editorA'));
+select test.ca_keep('e2', to_jsonb(test.ev(null, 'Fall Fair & Pie Social!')));
+select test.as_root();
+select test.ok((select slug from public.community_events where id = test.ca_k('e2')::uuid) = 'fall-fair-pie-social-2', 'E2: a second event with the same title gets a unique slug');
+select test.as_user(test.id('editorA'));
+select test.ev(test.ca_k('e1')::uuid, 'Fall Fair (renamed)', 'cancelled');
+select test.as_root();
+select test.ok((select slug || '|' || title || '|' || status::text from public.community_events where id = test.ca_k('e1')::uuid) = 'fall-fair-pie-social|Fall Fair (renamed)|cancelled', 'E3: editing keeps the slug');
+select test.as_user(test.id('editorA'));
+select test.throws($$select test.ev(null, '   ')$$, 'E4: a title is required', '22023');
+select test.throws($$select test.ev(null, repeat('t', 151))$$, 'E5: a long title is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', now() + interval '2 days', now() + interval '1 day')$$, 'E6: ending before the start is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'rejected')$$, 'E7: only published, cancelled or pending', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, 'FREQ=YEARLY')$$, 'E8: an unsupported repeat rule is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, 'FREQ=WEEKLY;BYDAY=XX')$$, 'E9: junk days are refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, 'FREQ=DAILY;BYDAY=MO')$$, 'E10: days of the week only go with weekly', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, 'FREQ=WEEKLY;INTERVAL=0')$$, 'E11: a zero interval is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, now() + interval '9 days')$$, 'E12: a repeat end without a repeat is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', now() + interval '3 days', null, 'FREQ=WEEKLY;BYDAY=SA', now() + interval '1 day')$$, 'E13: a repeat end before the start is refused', '22023');
+select test.ok(test.ev(null, 'Weekly thing', 'published', null, null, 'FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH', now() + interval '90 days') is not null, 'E14: a good weekly rule is accepted');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, null, 'javascript:alert(1)')$$, 'E15: the website must be http(s)', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, null, null, test.id('tcommB'))$$, 'E16: another tenant''s community is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, null, null, null, '00000000-0000-0000-0000-0000000ca002')$$, 'E17: another tenant''s event type is refused', '22023');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, null, null, null, null, '00000000-0000-0000-0000-0000000ca202')$$, 'E18: another tenant''s business as organizer is refused', '22023');
+select test.throws($$select test.ev(gen_random_uuid(), 't')$$, 'E19: editing an unknown event is not found', 'P0002');
+select test.throws($$select test.ev(null, 't', 'published', null, null, null, null, null, null, null, null, repeat('d', 3001))$$, 'E20: a very long description is refused', '22023');
+select test.throws($$select public.delete_event(test.ta(), test.ca_k('e2')::uuid)$$, 'E21: a published event must be cancelled before deleting', '22023');
+select public.delete_event(test.ta(), test.ca_k('e1')::uuid);
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.community_events where id = ''' || test.ca_k('e1') || '''') = 0, 'E22: a cancelled event can be deleted');
+select test.as_user(test.id('editorA'));
+select test.throws($$select public.delete_event(test.ta(), gen_random_uuid())$$, 'E23: deleting an unknown event is not found', 'P0002');
+select test.as_user(test.id('adminA'));
+select test.ok(test.ev(null, 'Admin made this') is not null, 'E24: an admin can also write events');
+select test.as_user(test.id('editorA'));
+
+-- ===== articles
+select test.ca_keep('a1', to_jsonb(test.ar(null, '10 Things to Do: Fall!', 'draft', null, repeat('word ', 450), null, null, null, '  Pat Writer ', '00000000-0000-0000-0000-0000000ca101', ' Summary ')));
+select test.as_root();
+select test.ok((select slug || '|' || status::text || '|' || read_minutes || '|' || excerpt || '|' || (publish_at is null)::text from public.articles where id = test.ca_k('a1')::uuid) = '10-things-to-do-fall|draft|2|Summary|true', 'A1: an article is created as a draft with a slug, reading time and trimmed summary');
+select test.ok((select a.name from public.authors a join public.articles x on x.author_id = a.id where x.id = test.ca_k('a1')::uuid) = 'Pat Writer', 'A2: the author is created from the name, trimmed');
+select test.as_user(test.id('editorA'));
+select test.ar(null, 'Another', 'draft', null, 'x', null, null, null, 'pat writer');
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.authors where tenant_id = ''' || test.ta() || ''' and lower(name) = ''pat writer''') = 1, 'A3: the same author name (any case) is reused, not duplicated');
+select test.as_user(test.id('editorA'));
+select test.ca_keep('a2', to_jsonb(test.ar(null, '10 Things to Do: Fall!')));
+select test.as_root();
+select test.ok((select slug from public.articles where id = test.ca_k('a2')::uuid) = '10-things-to-do-fall-2', 'A4: a duplicate title gets a unique slug');
+select test.as_user(test.id('editorA'));
+select test.throws($$select test.ar(null, 'Dup', 'draft', '10-things-to-do-fall')$$, 'A5: an explicit slug that is taken is refused', '22023');
+select test.throws($$select test.ar(null, 'Bad slug', 'draft', 'Has Spaces')$$, 'A6: a bad slug is refused', '22023');
+select test.throws($$select test.ar(test.ca_k('a2')::uuid, 'Renamed', 'draft', '10-things-to-do-fall')$$, 'A7: changing a slug to one in use is refused', '22023');
+select test.ar(test.ca_k('a2')::uuid, 'Renamed', 'draft', 'my-new-slug');
+select test.as_root();
+select test.ok((select slug || '|' || title from public.articles where id = test.ca_k('a2')::uuid) = 'my-new-slug|Renamed', 'A8: a slug can be changed to a free one');
+select test.as_user(test.id('editorA'));
+select test.ca_keep('a3', to_jsonb(test.ar(null, 'Live now', 'published')));
+select test.as_root();
+select test.ok((select publish_at between now() - interval '1 minute' and now() + interval '1 minute' from public.articles where id = test.ca_k('a3')::uuid), 'A9: publishing with no time publishes now');
+select test.as_user(test.id('editorA'));
+select test.throws($$select test.ar(null, 't', 'scheduled')$$, 'A10: a scheduled article needs a time', '22023');
+select test.throws($$select test.ar(null, 't', 'scheduled', null, 'x', now() - interval '1 hour')$$, 'A11: and it must be in the future', '22023');
+select test.throws($$select test.ar(null, 't', 'published', null, 'x', now() + interval '1 day')$$, 'A12: a published article cannot be dated in the future', '22023');
+select test.ok(test.ar(null, 'Soon', 'scheduled', null, 'x', now() + interval '1 day') is not null, 'A13: a future scheduled article is accepted');
+select test.throws($$select test.ar(null, '   ')$$, 'A14: a title is required', '22023');
+select test.throws($$select test.ar(null, 't', 'draft', null, repeat('x', 50001))$$, 'A15: a huge body is refused', '22023');
+select test.throws($$select test.ar(null, 't', 'draft', null, 'x', null, 6)$$, 'A16: a featured position above 5 is refused', '22023');
+select test.throws($$select test.ar(null, 't', 'draft', null, 'x', null, null, null, null, '00000000-0000-0000-0000-0000000ca102')$$, 'A17: another tenant''s category is refused', '22023');
+select test.throws($$select test.ar(null, 't', 'draft', null, 'x', null, null, null, null, null, null, '00000000-0000-0000-0000-0000000ca202')$$, 'A18: another tenant''s business as spotlight is refused', '22023');
+select test.throws($$select test.ar(gen_random_uuid(), 't')$$, 'A19: editing an unknown article is not found', 'P0002');
+select test.throws($$select test.ar(null, 't', 'draft', null, 'x', null, null, null, repeat('n', 81))$$, 'A20: a long author name is refused', '22023');
+select test.ar(test.ca_k('a1')::uuid, '10 Things to Do: Fall!', 'published', null, 'x', null, 1);
+select test.ar(test.ca_k('a2')::uuid, 'Renamed', 'published', 'my-new-slug', 'x', null, 1);
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.articles where tenant_id = ''' || test.ta() || ''' and featured_rank = 1') = 1 and (select featured_rank from public.articles where id = test.ca_k('a2')::uuid) = 1, 'A21: a featured position belongs to one article at a time (the newest holder wins)');
+
+-- guide items
+select test.as_user(test.id('editorA'));
+select test.ar(test.ca_k('a1')::uuid, '10 Things to Do: Fall!', 'published', null, 'x', null, null, '[{"title":" Hike ","body":"Go"},{"title":"Shop","business_slug":"ca-biz"}]');
+select test.as_root();
+select test.ok((select string_agg(position || ':' || title || ':' || coalesce((select slug from public.businesses b where b.id = i.business_id), '-'), ',' order by position) from public.article_items i where article_id = test.ca_k('a1')::uuid) = '1:Hike:-,2:Shop:ca-biz', 'I1: guide items are saved in order, trimmed, with a business linked by its address');
+select test.as_user(test.id('editorA'));
+select test.ar(test.ca_k('a1')::uuid, '10 Things to Do: Fall!', 'published', null, 'x', null, null, '[{"title":"Only"}]');
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.article_items where article_id = ''' || test.ca_k('a1') || '''') = 1, 'I2: saving replaces the items');
+select test.as_user(test.id('editorA'));
+select test.ar(test.ca_k('a1')::uuid, '10 Things to Do: Fall!', 'published', null, 'x', null, null, null);
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.article_items where article_id = ''' || test.ca_k('a1') || '''') = 1, 'I3: passing no items leaves them alone');
+select test.as_user(test.id('editorA'));
+select test.throws($$select test.ar(test.ca_k('a1')::uuid, 't', 'published', null, 'x', null, null, '[{"title":"  "}]')$$, 'I4: an item needs a title', '22023');
+select test.ok(test.ca_msg($$select test.ar(test.ca_k('a1')::uuid, 't', 'published', null, 'x', null, null, '[{"title":"A","business_slug":"nope"}]')$$, '%unknown business "nope"%'), 'I5: an unknown business address is named');
+select test.throws($$select test.ar(test.ca_k('a1')::uuid, 't', 'published', null, 'x', null, null, '[{"title":"A","business_slug":"ca-bbiz"}]')$$, 'I6: another tenant''s business cannot be linked', '22023');
+select test.throws($$select test.ar(test.ca_k('a1')::uuid, 't', 'published', null, 'x', null, null, (select jsonb_agg(jsonb_build_object('title', 'i' || g)) from generate_series(1, 26) g))$$, 'I7: more than 25 items is refused', '22023');
+select test.throws($$select test.ar(test.ca_k('a1')::uuid, 't', 'published', null, 'x', null, null, '{"a":1}')$$, 'I8: items must be a list', '22023');
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.article_items where article_id = ''' || test.ca_k('a1') || '''') = 1 and (select title from public.articles where id = test.ca_k('a1')::uuid) = '10 Things to Do: Fall!', 'I9: a refused save changed nothing (title and items intact)');
+
+-- delete
+select test.as_user(test.id('editorA'));
+select test.throws($$select public.delete_article(test.ta(), test.ca_k('a1')::uuid)$$, 'D1: a published article must be archived before deleting', '22023');
+select test.ar(test.ca_k('a1')::uuid, '10 Things to Do: Fall!', 'archived');
+select public.delete_article(test.ta(), test.ca_k('a1')::uuid);
+select test.as_root();
+select test.ok(test.ca_n('select count(*) from public.articles where id = ''' || test.ca_k('a1') || '''') = 0 and test.ca_n('select count(*) from public.article_items where article_id = ''' || test.ca_k('a1') || '''') = 0, 'D2: an archived article and its items can be deleted');
+
+-- ===== cover images
+select test.as_user(test.id('editorA'));
+select test.ca_keep('c1', public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/articles/' || test.ca_k('a2') || '/one.jpg', 'A cover', 800, 600, 1000));
+select test.as_root();
+select test.ok((select m.storage_path || '|' || m.alt_text from public.articles a join public.media_assets m on m.id = a.cover_media_id where a.id = test.ca_k('a2')::uuid) = test.ta()::text || '/articles/' || test.ca_k('a2') || '/one.jpg|A cover', 'M1: a cover is recorded and attached');
+select test.as_user(test.id('editorA'));
+select test.ca_keep('c2', public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/articles/' || test.ca_k('a2') || '/two.jpg', 'New cover', 800, 600, 1000));
+select test.as_root();
+select test.ok((select j #>> '{replaced,path}' from ca_pk where k = 'c2') = test.ta()::text || '/articles/' || test.ca_k('a2') || '/one.jpg' and test.ca_n('select count(*) from public.media_assets where storage_path like ''%/articles/' || test.ca_k('a2') || '/%''') = 1, 'M2: a new cover replaces the old one and reports the old file');
+select test.as_user(test.id('editorA'));
+select test.ok(public.set_content_image(test.ta(), 'event', test.ca_k('e2')::uuid, 'media', test.ta()::text || '/events/' || test.ca_k('e2') || '/e.png', 'Event image', 400, 400, 500) is not null, 'M3: events have an image too');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', 'x/y/z.jpg', 'alt', 800, 600, 1000)$$, 'M4: a path outside the item''s folder is refused', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/events/' || test.ca_k('a2') || '/z.jpg', 'alt', 800, 600, 1000)$$, 'M5: the wrong kind folder is refused', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/articles/' || test.ca_k('a2') || '/../x.jpg', 'alt', 800, 600, 1000)$$, 'M6: dot-dot is refused', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/articles/' || test.ca_k('a2') || '/ok.jpg', '  ', 800, 600, 1000)$$, 'M7: alt text is required', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', test.ta()::text || '/articles/' || test.ca_k('a2') || '/ok.jpg', 'alt', 800, 600, 5000001)$$, 'M8: over 5 MB is refused', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'avatars', test.ta()::text || '/articles/' || test.ca_k('a2') || '/ok.jpg', 'alt', 800, 600, 1000)$$, 'M9: only the media bucket', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'page', test.ca_k('a2')::uuid, 'media', 'x', 'alt', 1, 1, 1)$$, 'M10: only articles and events', '22023');
+select test.throws($$select public.set_content_image(test.ta(), 'article', gen_random_uuid(), 'media', test.ta()::text || '/articles/00000000-0000-0000-0000-000000000000/a.jpg', 'alt', 8, 8, 8)$$, 'M11: an unknown article is not found', '22023');
+select test.ca_keep('c3', public.clear_content_image(test.ta(), 'article', test.ca_k('a2')::uuid));
+select test.as_root();
+select test.ok((select j ->> 'path' from ca_pk where k = 'c3') like '%/two.jpg' and (select cover_media_id is null from public.articles where id = test.ca_k('a2')::uuid), 'M12: clearing removes the cover and reports the file to delete');
+select test.as_user(test.id('editorA'));
+select test.ok((public.clear_content_image(test.ta(), 'article', test.ca_k('a2')::uuid) ->> 'path') is null, 'M13: clearing when there is none is harmless');
+select test.as_user(test.id('salesA'));
+select test.throws($$select public.set_content_image(test.ta(), 'article', test.ca_k('a2')::uuid, 'media', 'x', 'alt', 1, 1, 1)$$, 'M14: sales staff cannot manage cover images', '42501');
+select test.as_root();

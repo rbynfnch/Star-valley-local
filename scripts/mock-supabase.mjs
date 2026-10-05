@@ -40,6 +40,7 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  editorial: null,    // articles/events/deals tables for the content admin (see freshEditorial)
   tracking: [],       // record_tracking arguments received
   activity: null,     // admin_business_activity result (see freshActivity)
   email: { batches: [], completes: [], fails: [], suppressions: [], maintenance: 0, maintenanceFails: false, queueView: null, retries: [], retryError: null, postmark: [], postmarkReplies: [] },
@@ -82,6 +83,30 @@ export const freshActivity = () => ({
   current: { profile_view: 212, phone_click: 14, website_click: 31, directions_click: 9, search_appearance: 640, quote_request: 2 },
   previous: { profile_view: 180, phone_click: 14, website_click: 12 },
   top_searches: [{ query: 'plumber in thayne', n: 40 }, { query: '<b>water heater</b>', n: 12 }],
+});
+
+export const TENANT_ID = '9d3c1b7a-0000-4000-8000-000000000001';
+export const freshEditorial = () => ({
+  articles: [
+    { id: 'a1000000-0000-4000-8000-000000000001', tenant_id: null, slug: 'fall-hiking', title: 'Fall hiking <b>guide</b>', excerpt: 'Trails', body_md: 'Pack water.', status: 'published', category_id: 'ac000000-0000-4000-8000-000000000001', author_id: 'au000000-0000-4000-8000-000000000001', cover_media_id: null, spotlight_business_id: null, featured_rank: 1, publish_at: '2026-10-01T15:00:00Z', seo_title: null, seo_description: null, updated_at: '2026-10-02T00:00:00Z' },
+    { id: 'a1000000-0000-4000-8000-000000000002', tenant_id: null, slug: 'draft-piece', title: 'A draft piece', excerpt: null, body_md: '', status: 'draft', category_id: null, author_id: null, cover_media_id: null, spotlight_business_id: null, featured_rank: null, publish_at: null, seo_title: null, seo_description: null, updated_at: '2026-10-01T00:00:00Z' },
+  ],
+  article_items: [{ article_id: 'a1000000-0000-4000-8000-000000000001', position: 1, title: 'Hike the ridge', body: 'Go early', business_id: null }],
+  article_categories: [{ id: 'ac000000-0000-4000-8000-000000000001', name: 'Things to Do', is_active: true }, { id: 'ac000000-0000-4000-8000-000000000002', name: 'Local News', is_active: true }],
+  authors: [{ id: 'au000000-0000-4000-8000-000000000001', name: 'Taylor Jensen' }],
+  events: [
+    { id: 'e1000000-0000-4000-8000-000000000001', tenant_id: null, slug: 'farmers-market', title: 'Farmers Market', description: 'Produce', status: 'published', community_id: BIZ, category_id: 'ec000000-0000-4000-8000-000000000001', venue_name: 'Town Square', address: '1 Main St', starts_at: '2026-10-10T14:00:00Z', ends_at: '2026-10-10T19:00:00Z', all_day: false, rrule: 'FREQ=WEEKLY;BYDAY=SA', recurrence_until: '2026-12-20T06:59:00Z', url: 'https://market.example', organizer_business_id: null, image_media_id: null },
+    { id: 'e1000000-0000-4000-8000-000000000002', tenant_id: null, slug: 'pending-thing', title: 'Pending thing', description: null, status: 'pending', community_id: null, category_id: null, venue_name: null, address: null, starts_at: '2026-11-01T18:00:00Z', ends_at: null, all_day: true, rrule: null, recurrence_until: null, url: null, organizer_business_id: null, image_media_id: null },
+  ],
+  event_categories: [{ id: 'ec000000-0000-4000-8000-000000000001', name: 'Food & Drink' }, { id: 'ec000000-0000-4000-8000-000000000002', name: 'Sports' }],
+  deals: [
+    { id: 'd1000000-0000-4000-8000-000000000001', business_id: BIZ, title: '20% off tune-up', status: 'published', starts_at: '2026-10-01T06:00:00Z', ends_at: '2026-12-01T07:00:00Z', created_at: '2026-10-01T00:00:00Z' },
+    { id: 'd1000000-0000-4000-8000-000000000002', business_id: BIZ, title: 'Old promo', status: 'archived', starts_at: '2026-01-01T06:00:00Z', ends_at: null, created_at: '2026-01-01T00:00:00Z' },
+  ],
+  businesses: [{ id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing' }],
+  media: {},
+  saved: [],        // arguments of save_article / save_event, in order
+  deleted: [],      // { kind, id }
 });
 
 export const SUB_IDS = { update: '11111111-1111-4111-8111-111111111111', business: '22222222-2222-4222-8222-222222222222', event: '33333333-3333-4333-8333-333333333333', xss: '44444444-4444-4444-8444-444444444444' };
@@ -248,6 +273,56 @@ export function startMock() {
         const rep = state.email.postmarkReplies.shift();
         if (rep) return json(rep.status, rep.body);
         return json(200, { ErrorCode: 0, Message: 'OK', MessageID: 'pm-' + state.email.postmark.length, To: b.To });
+      }
+
+      // ---- editorial content admin: tables read through PostgREST by the signed-in editor, writes through RPCs
+      if (state.editorial && (req.method === 'GET' || req.method === 'HEAD') && /^\/rest\/v1\/(articles|community_events|deals|article_categories|event_categories|authors|article_items|media_assets|businesses)\b/.test(req.url) && (u?.role === 'editor' || u?.role === 'admin' || u?.role === 'sales')) {
+        const t = /^\/rest\/v1\/([a-z_]+)/.exec(req.url)[1], q = new URL(req.url, 'http://x').searchParams, E = state.editorial;
+        if (t === 'businesses' && !q.get('slug') && !q.get('id') && !q.get('id')?.startsWith('in.')) { /* fall through to the other businesses handler */ }
+        else {
+          const src = { articles: E.articles, community_events: E.events, deals: E.deals, article_categories: E.article_categories, event_categories: E.event_categories, authors: E.authors, article_items: E.article_items, media_assets: Object.values(E.media), businesses: E.businesses }[t];
+          let rows = src.filter((r) => [...q.entries()].every(([k, v]) => {
+            if (['select', 'order', 'limit', 'offset'].includes(k)) return true;
+            if (v.startsWith('eq.')) return r[k] === undefined || r[k] === null ? (k === 'tenant_id') : String(r[k]) === v.slice(3);
+            if (v.startsWith('in.(')) return v.slice(4, -1).split(',').includes(String(r[k]));
+            return true;
+          }));
+          if (t === 'businesses' && q.get('select') === 'id' && q.get('slug')) rows = rows.filter((r) => r.slug === q.get('slug').slice(3));
+          const order = q.get('order');
+          if (order) { const [col, dir] = order.split('.'); rows = [...rows].sort((a, b) => String(a[col] ?? '').localeCompare(String(b[col] ?? '')) * (dir === 'desc' ? -1 : 1)); }
+          if (req.method === 'HEAD') { res.writeHead(200, { 'content-range': `*/${rows.length}` }); return res.end(); }
+          if ((req.headers.accept ?? '').includes('pgrst.object')) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows', details: '', hint: null });
+          return json(200, rows);
+        }
+      }
+      if (state.editorial && /^(save_article|save_event|delete_article|delete_event|set_content_image|clear_content_image)$/.test(rpc ?? '')) {
+        if (u?.role !== 'editor' && u?.role !== 'admin') return json(403, { code: '42501', message: 'editors only' });
+        const E = state.editorial;
+        if (rpc === 'save_article' || rpc === 'save_event') {
+          const art = rpc === 'save_article', list = art ? E.articles : E.events; E.saved.push({ rpc, ...args });
+          const id = args.p_id ?? ('f0000000-0000-4000-8000-' + String(list.length + 100).padStart(12, '0'));
+          if (!args.p_id) list.push(art ? { id, slug: 'new-' + id.slice(-3), title: args.p_title, status: args.p_status, excerpt: null, body_md: args.p_body, category_id: args.p_category, author_id: null, cover_media_id: null, spotlight_business_id: null, featured_rank: args.p_featured_rank, publish_at: args.p_publish_at, seo_title: null, seo_description: null, updated_at: new Date().toISOString() }
+            : { id, slug: 'new-' + id.slice(-3), title: args.p_title, description: args.p_description, status: args.p_status, community_id: args.p_community, category_id: args.p_category, venue_name: args.p_venue, address: args.p_address, starts_at: args.p_starts, ends_at: args.p_ends, all_day: args.p_all_day, rrule: args.p_rrule, recurrence_until: args.p_until, url: args.p_url, organizer_business_id: args.p_organizer, image_media_id: null });
+          else { const r = list.find((x) => x.id === id); if (!r) return json(404, { code: 'P0002', message: (art ? 'article' : 'event') + ' not found' }); r.title = args.p_title; r.status = args.p_status; if (art) { r.body_md = args.p_body; r.featured_rank = args.p_featured_rank; r.publish_at = args.p_publish_at; } else { r.rrule = args.p_rrule; r.starts_at = args.p_starts; } }
+          return json(200, id);
+        }
+        if (rpc === 'delete_article' || rpc === 'delete_event') {
+          const art = rpc === 'delete_article', list = art ? E.articles : E.events, r = list.find((x) => x.id === args.p_id);
+          if (!r) return json(404, { code: 'P0002', message: 'not found' });
+          if (art ? !['draft', 'archived'].includes(r.status) : r.status === 'published') return json(400, { code: '22023', message: art ? 'archive a published or scheduled article before deleting it' : 'cancel a published event before deleting it' });
+          list.splice(list.indexOf(r), 1); E.deleted.push({ kind: art ? 'article' : 'event', id: args.p_id });
+          const m = E.media[art ? r.cover_media_id : r.image_media_id]; return json(200, { bucket: m?.storage_bucket ?? null, path: m?.storage_path ?? null });
+        }
+        if (rpc === 'set_content_image') {
+          const art = args.p_kind === 'article', r = (art ? E.articles : E.events).find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: args.p_kind + ' not found' });
+          const key = art ? 'cover_media_id' : 'image_media_id', old = E.media[r[key]]; const id = 'm' + (Object.keys(E.media).length + 1);
+          E.media[id] = { id, storage_bucket: args.p_bucket, storage_path: args.p_path, alt_text: args.p_alt }; r[key] = id; E.saved.push({ rpc, ...args });
+          return json(200, { id, replaced: old ? { bucket: old.storage_bucket, path: old.storage_path } : null });
+        }
+        if (rpc === 'clear_content_image') {
+          const art = args.p_kind === 'article', r = (art ? E.articles : E.events).find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: 'not found' });
+          const key = art ? 'cover_media_id' : 'image_media_id', old = E.media[r[key]]; r[key] = null; return json(200, { bucket: old?.storage_bucket ?? null, path: old?.storage_path ?? null });
+        }
       }
       // ---- content editor (staff only; the real rules are tested in SQL, the mock only stores what it is sent)
       if (rpc && /^(business_content|set_business_(hours|services|links|faqs|areas)|save_deal|delete_deal|add_business_photo|update_business_photo|delete_business_photo|reorder_business_photos)$/.test(rpc)) {
