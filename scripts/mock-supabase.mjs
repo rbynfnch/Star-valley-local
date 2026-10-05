@@ -41,6 +41,7 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  owner: null,        // owner dashboard (see freshOwner)
   postcards: null,    // postcard batches (see freshPostcards)
   hotlist: null,      // Local Hotlist admin + claims (see freshHotlist)
   editorial: null,    // articles/events/deals tables for the content admin (see freshEditorial)
@@ -314,6 +315,40 @@ export function startMock() {
         return json(200, { ErrorCode: 0, Message: 'OK', MessageID: 'pm-' + state.email.postmark.length, To: b.To });
       }
 
+      // ---- owner dashboard: the signed-in owner uses the content functions and reads their own rows (RLS is simulated: other businesses are refused)
+      if (state.owner && u && u.id === state.owner.userId) {
+        const O = state.owner, mine = (id) => O.businesses.some((b) => b.id === id), biz0 = O.businesses[0];
+        if (rpc) O.calls.push({ rpc, ...args });
+        if (rpc === 'owner_dashboard') return json(200, O.businesses);
+        if (rpc === 'owner_business_activity') return mine(args.p_business) ? json(200, O.activity) : json(403, { code: '42501', message: 'owners and sales staff only' });
+        if (rpc && /^(business_content|set_business_(hours|services|links|faqs|areas)|save_deal|delete_deal|add_business_photo|update_business_photo|delete_business_photo|reorder_business_photos)$/.test(rpc)) {
+          if (!mine(args.p_business)) return json(403, { code: '42501', message: 'sales staff or the business owner only' });
+          const free = biz0.tier !== 'enhanced';
+          if (free && /^(set_business_(services|links|faqs)|save_deal)$/.test(rpc)) return json(403, { code: '42501', message: 'new row violates row-level security policy' });
+          if (rpc === 'business_content') return json(200, { ...O.content, enhanced: !free });
+          if (rpc === 'set_business_hours') { O.content.hours = args.p_rows; return json(200, null); }
+          if (rpc === 'add_business_photo') { if (free && O.content.photos.length >= 2 && args.p_role === 'gallery') return json(400, { code: '22023', message: 'a Free listing holds a logo and a cover photo; more photos are part of Enhanced' }); O.content.photos.push({ id: 'f0000000-0000-4000-8000-0000000000' + (10 + O.content.photos.length), role: args.p_role, caption: null, alt: args.p_alt, bucket: args.p_bucket, path: args.p_path, width: args.p_width, height: args.p_height }); return json(200, { id: 'x', replaced: null }); }
+          return json(200, null);
+        }
+        if (rpc === 'update_business_fields') {
+          if (!mine(args.p_business)) return json(403, { code: '42501', message: 'sales staff or the business owner only' });
+          const f = args.p_fields ?? {};
+          if (['legal_name', 'home_community_id', 'primary_category_id'].some((k) => k in f)) return json(400, { code: '22023', message: 'ask us to change the legal name, community or category' });
+          if (biz0.tier !== 'enhanced' && ['description', 'highlights', 'email'].some((k) => k in f)) return json(400, { code: '22023', message: 'the long description, highlights and public email are part of an Enhanced listing' });
+          Object.assign(O.profile, f); return json(200, null);
+        }
+        if (rpc === 'submit_hotlist_offer') { if (O.offerError) return json(O.offerError.status, O.offerError.body); O.offers.push(args.p_fields); O.hotlist.unshift({ id: 'h' + O.offers.length, slug: 'x', title: args.p_fields.title, status: 'pending', price_cents: args.p_fields.price_cents, original_cents: args.p_fields.original_cents, ends_at: args.p_fields.ends_at, reject_reason: null }); return json(200, 'h1'); }
+        if (req.url.startsWith('/rest/v1/businesses') && req.method === 'GET') { const id = /id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1]; return mine(id) ? ((req.headers.accept ?? '').includes('pgrst.object') ? json(200, O.profile) : json(200, [O.profile])) : json(200, []); }
+        if (req.url.startsWith('/rest/v1/leads')) {
+          const id = /business_id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1];
+          if (req.method === 'PATCH') { const lid = /[?&]id=eq\.([0-9a-f-]+)/.exec(req.url)?.[1]; const l = O.leads.find((x) => x.id === lid); if (!l || !mine(id)) return json(200, []); if (O.leadError) return json(500, { message: 'boom' }); l.status = JSON.parse(body).status; return json(200, [{ id: l.id }]); }
+          return json(200, mine(id) ? O.leads : []);
+        }
+        if (req.url.startsWith('/rest/v1/listings')) return json(200, O.listings);
+        if (req.url.startsWith('/rest/v1/payments')) return json(200, O.payments);
+        if (req.url.startsWith('/rest/v1/placements')) return json(200, O.placements);
+        if (req.url.startsWith('/rest/v1/hotlist_items')) return json(200, O.hotlist);
+      }
       // ---- postcards
       if (state.postcards && /^(postcard_batch_create|postcard_void|admin_postcard_overview|postcard_redeem)$/.test(rpc ?? '')) {
         const P = state.postcards; P.calls.push({ rpc, ...args, _who: u?.id ?? 'service' });
@@ -522,5 +557,18 @@ export function freshPostcards() {
       { id: 'c0000000-0000-4000-8000-000000000001', business: 'Gamma Cafe', status: 'issued', issued_at: '2026-09-15T12:00:00Z', redeemed_at: null },
       { id: 'c0000000-0000-4000-8000-000000000002', business: 'Delta Dental', status: 'redeemed', issued_at: '2026-09-15T12:00:00Z', redeemed_at: '2026-09-20T12:00:00Z' }] }],
     codes: [{ code: 'ABCDEFGHJK', owner: 'u-owner', status: 'issued' }], nextCodes: ['K7Q2MXVB9P', 'AB23CD45EF'], created: [], calls: [], redeemError: null, createError: null,
+  };
+}
+
+export function freshOwner(userId = 'u-owner') {
+  const T = '00000000-0000-4000-8000-0000000000aa';
+  return {
+    userId, calls: [], offers: [], offerError: null, leadError: null,
+    businesses: [{ id: T, slug: 'sample-smile-dental', name: 'Sample Smile Dental', status: 'claimed', verification_level: 'green', verified_at: '2026-09-01T12:00:00Z', reverify_due_at: '2027-09-01T12:00:00Z', city: 'Afton', community_id: null, tier: 'free', listing_ends_at: null, new_leads: 2, has_postcard_pending: false }],
+    activity: { days: 30, current: { profile_view: 212, phone_click: 14, website_click: 31 }, previous: { profile_view: 150, phone_click: 14 }, visitors: 140, top_searches: [{ query: 'dentist', n: 9 }], first_event_at: '2026-08-01T00:00:00Z' },
+    profile: { name: 'Sample Smile Dental', address_line1: '1 Main St', address_line2: null, city: 'Afton', postal_code: '83110', phone: '(307) 555-0101', website: null, email: 'private@dental.example', short_description: 'Friendly dentistry', description: null, hours_note: null },
+    content: { enhanced: false, home_community_id: null, primary_category_id: null, highlights: [], price_range: null, hours: [], services: [], links: [], faqs: [], community_ids: [], category_ids: [], deals: [], photos: [] },
+    leads: [{ id: 'e0000000-0000-4000-8000-0000000000e1', name: 'Pat Customer', email: 'pat@example.test', phone: '(307) 555-0188', service_needed: 'Cleaning', message: 'Do you take new patients?', status: 'new', created_at: '2026-10-01T15:00:00Z' }],
+    listings: [], payments: [{ id: 'p1', status: 'paid', amount_cents: 1900, channel: 'manual', created_at: '2026-09-02T12:00:00Z', notes: null }], placements: [], hotlist: [],
   };
 }

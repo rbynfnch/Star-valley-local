@@ -62,7 +62,18 @@ function useOneShot(action: (f: FormData) => Promise<ContentState>) {
 
 const PRICE = [["", "Not shown"], ["0", "Free"], ["1", "$"], ["2", "$$"], ["3", "$$$"]] as const;
 
-export function ContentEditor({ business, content: c, communities, categories, tz, mediaBase }: { business: string; content: Content; communities: Opt[]; categories: Opt[]; tz: string; mediaBase: string | null }) {
+function Locked({ title, planHref }: { title: string; planHref: string }) {
+  return (
+    <section aria-label={title} className="rounded-card border border-dashed border-slate-600 bg-surface-card p-4">
+      <h2 className="font-heading text-lg font-semibold text-text">{title}</h2>
+      <p className="mt-1 text-sm text-text-body">Part of an Enhanced listing. <a href={planHref} className="font-semibold text-link underline">See the plans</a>.</p>
+    </section>
+  );
+}
+
+/** `owner` = a business owner (not staff) is editing: Enhanced-only sections are locked while the listing is Free, and the notes speak to them. */
+export function ContentEditor({ business, content: c, communities, categories, tz, mediaBase, owner = false, planHref = "" }: { business: string; content: Content; communities: Opt[]; categories: Opt[]; tz: string; mediaBase: string | null; owner?: boolean; planHref?: string }) {
+  const lock = owner && !c.enhanced;
   const grid = hoursGrid(c.hours, RANGES_PER_DAY);
   const linkOf = (kind: string) => c.links.find((l) => l.kind === kind)?.url ?? "";
   const others = c.links.filter((l) => l.kind === "other").map((l) => l.url);
@@ -72,12 +83,13 @@ export function ContentEditor({ business, content: c, communities, categories, t
 
   return (
     <div className="mt-4 space-y-4">
-      {!c.enhanced && (
+      {!c.enhanced && !owner && (
         <p role="note" className="rounded-card border border-slate-600 bg-surface-muted p-3 text-sm text-text">
           This business is on the <strong>Free</strong> plan. You can fill everything in now, but highlights, services, links, questions, deals and extra photos show on the public page only while it has an active Enhanced listing.
         </p>
       )}
 
+      {lock ? <Locked title="Highlights" planHref={planHref} /> : (
       <Section id="highlights" title="Highlights and price level" business={business} action={saveHighlights} hint="Short selling points, one per line (up to 8, 40 characters each).">
         <div key={key([c.highlights, c.price_range])} className="space-y-3">
           <div>
@@ -92,6 +104,7 @@ export function ContentEditor({ business, content: c, communities, categories, t
           </div>
         </div>
       </Section>
+      )}
 
       <Section id="hours" title="Hours" business={business} action={saveHours} hint="Up to three time ranges a day (for a lunch break, say). Leave a day empty for closed or unknown. Use 11:59 PM then 12:00 AM for hours past midnight.">
         <div key={key(c.hours)} className="space-y-2">
@@ -113,13 +126,16 @@ export function ContentEditor({ business, content: c, communities, categories, t
         </div>
       </Section>
 
+      {lock ? <Locked title="Services" planHref={planHref} /> : (
       <Section id="services" title="Services" business={business} action={saveServices} hint="One per line, up to 40.">
         <div key={key(c.services)}>
           <label htmlFor="services" className="sr-only">Services, one per line</label>
           <textarea id="services" name="services" rows={6} defaultValue={c.services.join("\n")} className={field} />
         </div>
       </Section>
+      )}
 
+      {lock ? <Locked title="Social and other links" planHref={planHref} /> : (
       <Section id="links" title="Social and other links" business={business} action={saveLinks} hint="Full web addresses. Each network must be that network's own address.">
         <div key={key(c.links)} className="grid gap-3 md:grid-cols-2">
           {SOCIAL_KINDS.map((s) => (
@@ -136,7 +152,9 @@ export function ContentEditor({ business, content: c, communities, categories, t
           ))}
         </div>
       </Section>
+      )}
 
+      {lock ? <Locked title="Questions and answers" planHref={planHref} /> : (
       <Section id="faqs" title="Questions and answers" business={business} action={saveFaqs} hint="Common questions. Both parts are needed; empty rows are ignored. These also help the page show up in answer-style search.">
         <div key={key(c.faqs)} className="space-y-3">
           {Array.from({ length: faqRows }, (_, i) => (
@@ -153,6 +171,7 @@ export function ContentEditor({ business, content: c, communities, categories, t
           ))}
         </div>
       </Section>
+      )}
 
       <Section id="areas" title="Service area and extra categories" business={business} action={saveAreas} hint="Where this business works besides its home community, and any other categories it fits. The home community and primary category are already included.">
         <div key={key([c.community_ids, c.category_ids])} className="grid gap-4 md:grid-cols-2">
@@ -175,7 +194,7 @@ export function ContentEditor({ business, content: c, communities, categories, t
         </div>
       </Section>
 
-      <DealsSection business={business} deals={c.deals} tz={tz} />
+      {lock ? <Locked title="Deals" planHref={planHref} /> : <DealsSection business={business} deals={c.deals} tz={tz} />}
       <PhotosSection business={business} photos={c.photos} mediaBase={mediaBase} />
     </div>
   );

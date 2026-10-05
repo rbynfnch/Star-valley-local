@@ -35,6 +35,7 @@
     "a11y": "node scripts/a11y-axe.mjs",
     "e2e:hotlist": "node scripts/e2e-hotlist.mjs",
     "e2e:postcards": "node scripts/e2e-postcards.mjs",
+    "e2e:owner": "node scripts/e2e-owner.mjs",
     "e2e:claim-invite": "node scripts/e2e-claim-invite.mjs"
   },
   "dependencies": {

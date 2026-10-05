@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { isUuid } from "@/lib/admin/detail-input";
 import { parseAreasInput, parseDealInput, parseFaqsInput, parseHighlightsInput, parseHoursInput, parseLinksInput, parsePhotoMeta, parseServicesInput } from "@/lib/admin/content-input";
 import { sniffImage } from "@/lib/admin/image-sniff";
-import { requireArea } from "@/lib/admin/session";
+import { requireBusinessWriter } from "@/lib/owner/session";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createUserClient } from "@/lib/supabase/server";
 
@@ -14,14 +14,14 @@ const FAIL = "That could not be saved. Reload the page and try again.";
 // The functions raise readable messages for rule violations (SQLSTATE 22023 / 22001 / 53400 / P0002); anything else gets the generic message.
 const FRIENDLY = new Set(["22023", "22001", "53400", "P0002", "28000"]);
 const friendly = (e: { code?: string; message?: string }) => (e.code && FRIENDLY.has(e.code) && e.message ? e.message.charAt(0).toUpperCase() + e.message.slice(1) + "." : FAIL);
-const refresh = (business: string) => { revalidatePath(`/admin/businesses/${business}/content`); revalidatePath(`/admin/businesses/${business}`); };
+const refresh = (business: string) => { revalidatePath(`/admin/businesses/${business}/content`); revalidatePath(`/admin/businesses/${business}`); revalidatePath(`/dashboard/${business}/content`); revalidatePath(`/dashboard/${business}`); };
 const BUCKET = "media";
 
 // ---- the section saves: parse, call the staff-only function as the signed-in user, refresh
 async function save<T>(form: FormData, parse: (f: FormData) => { ok: true; business: string; value: T } | { ok: false; error: string },
   call: (rpc: Awaited<ReturnType<typeof createUserClient>>["rpc"], tenant: string, business: string, v: T) => PromiseLike<{ error: { code?: string; message?: string } | null }>, done: string): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const p = parse(form); if (!p.ok) return { error: p.error };
+  const staff = await requireBusinessWriter(p.business);        // staff, or the owner of exactly this business
   const supabase = await createUserClient();
   const { error } = await call(supabase.rpc.bind(supabase), staff.tenant.id, p.business, p.value);
   if (error) return { error: friendly(error) };
@@ -56,7 +56,7 @@ export async function saveAreas(_s: ContentState, form: FormData): Promise<Conte
 
 // ---- deals
 export async function saveDeal(_s: ContentState, form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
+  const staff = await requireBusinessWriter(String(form.get("business") ?? ""));
   const p = parseDealInput(form, staff.tenant.timezone); if (!p.ok) return { error: p.error };
   const d = p.value, supabase = await createUserClient();
   const { error } = await supabase.rpc("save_deal", {
@@ -68,9 +68,9 @@ export async function saveDeal(_s: ContentState, form: FormData): Promise<Conten
   return { message: d.id ? "Deal saved." : "Deal added." };
 }
 export async function deleteDeal(form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const business = String(form.get("business") ?? ""), deal = String(form.get("deal") ?? "");
   if (!isUuid(business) || !isUuid(deal)) return { error: "Unknown deal." };
+  const staff = await requireBusinessWriter(business);
   const supabase = await createUserClient();
   const { error } = await supabase.rpc("delete_deal", { p_tenant: staff.tenant.id, p_business: business, p_id: deal });
   if (error) return { error: friendly(error) };
@@ -86,8 +86,8 @@ async function removeFile(path: string | null | undefined) {
   try { await createServiceClient().storage.from(BUCKET).remove([path]); } catch { /* an orphaned file is harmless; the row is already gone */ }
 }
 export async function uploadPhoto(_s: ContentState, form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const m = parsePhotoMeta(form); if (!m.ok) return { error: m.error };
+  const staff = await requireBusinessWriter(m.business);
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a photo to upload." };
   if (file.size > 5_000_000) return { error: "Photos can be at most 5 MB." };
@@ -111,8 +111,8 @@ export async function uploadPhoto(_s: ContentState, form: FormData): Promise<Con
   return { message: m.value.role === "gallery" ? "Photo added." : `${m.value.role === "logo" ? "Logo" : "Cover photo"} set.` };
 }
 export async function updatePhoto(_s: ContentState, form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const m = parsePhotoMeta(form); if (!m.ok) return { error: m.error };
+  const staff = await requireBusinessWriter(m.business);
   if (!m.value.photo) return { error: "Unknown photo." };
   const supabase = await createUserClient();
   const { error } = await supabase.rpc("update_business_photo", { p_tenant: staff.tenant.id, p_business: m.business, p_photo: m.value.photo, p_alt: m.value.alt, p_caption: m.value.caption, p_role: m.value.role });
@@ -121,9 +121,9 @@ export async function updatePhoto(_s: ContentState, form: FormData): Promise<Con
   return { message: "Photo saved." };
 }
 export async function deletePhoto(form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const business = String(form.get("business") ?? ""), photo = String(form.get("photo") ?? "");
   if (!isUuid(business) || !isUuid(photo)) return { error: "Unknown photo." };
+  const staff = await requireBusinessWriter(business);
   const supabase = await createUserClient();
   const { data, error } = await supabase.rpc("delete_business_photo", { p_tenant: staff.tenant.id, p_business: business, p_photo: photo });
   if (error) return { error: friendly(error) };
@@ -132,10 +132,10 @@ export async function deletePhoto(form: FormData): Promise<ContentState> {
   return { message: "Photo deleted." };
 }
 export async function reorderPhotos(form: FormData): Promise<ContentState> {
-  const staff = await requireArea("businesses");
   const business = String(form.get("business") ?? "");
   const ids = form.getAll("order").map(String);
   if (!isUuid(business) || ids.length === 0 || !ids.every(isUuid)) return { error: "Unknown photo." };
+  const staff = await requireBusinessWriter(business);
   const supabase = await createUserClient();
   const { error } = await supabase.rpc("reorder_business_photos", { p_tenant: staff.tenant.id, p_business: business, p_ids: ids });
   if (error) return { error: friendly(error) };

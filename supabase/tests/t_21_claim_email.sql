@@ -58,7 +58,7 @@ select test.as_root();
 -- ===== using the link
 select test.cl_svc();
 select test.throws($$select public.claim_verify(test.cl_k('s', 'claim_id')::uuid, test.id('owner2'), test.cl_k('s', 'secret'))$$, 'U1: another account cannot use the link, even holding the secret', 'P0002');
-select test.ok(public.claim_verify(test.cl_k('s', 'claim_id')::uuid, test.id('salesA'), 'f' || substr(test.cl_k('s', 'secret'), 2))->>'result' in ('wrong'), 'U2: a wrong token is wrong and counts an attempt');
+select test.ok(public.claim_verify(test.cl_k('s', 'claim_id')::uuid, test.id('salesA'), case when left(test.cl_k('s', 'secret'), 1) = 'f' then 'e' else 'f' end || substr(test.cl_k('s', 'secret'), 2))->>'result' in ('wrong'), 'U2: a wrong token is wrong and counts an attempt');
 select test.cl_keep('v', public.claim_verify(test.cl_k('s', 'claim_id')::uuid, test.id('salesA'), test.cl_k('s', 'secret')));
 select test.as_root();
 select test.ok(test.cl_k('v', 'result') = 'verified' and test.cl_k('v', 'level') = 'green', 'U3: the right token verifies and reaches Green');

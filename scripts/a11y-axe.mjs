@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { BIZ, cookieFor, freshDetail, freshHotlist, freshPostcards, startMock, state } from './mock-supabase.mjs';
+import { BIZ, cookieFor, freshDetail, freshHotlist, freshOwner, freshPostcards, startMock, state } from './mock-supabase.mjs';
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -19,9 +19,11 @@ const PUBLIC = ['/', '/businesses', '/businesses?q=plumb', '/categories/plumbing
   '/list-your-business', '/list-your-business?claim=sample-smile-dental', '/suggest-business', '/suggest-update', '/submit-event', '/account/sign-in', '/account/sign-up', '/styleguide', '/admin/login'];
 const ADMIN = ['/admin', '/admin/businesses', `/admin/businesses/${BIZ}`, `/admin/businesses/${BIZ}/edit`, `/admin/businesses/${BIZ}/content`, '/admin/import', '/admin/moderation', '/admin/placements', '/admin/email', '/admin/content', '/admin/content/articles', '/admin/content/events', '/admin/content/deals', '/admin/hotlist/new', '/admin/postcards', '/admin/hotlist', '/admin/content/articles/new', '/admin/content/events/new'];
 state.detail = freshDetail();
-state.postcards = freshPostcards(); state.hotlist = freshHotlist(fx.tenants[0].id);
+state.postcards = freshPostcards(); state.owner = freshOwner(); state.owner.businesses[0].tier = 'enhanced'; state.hotlist = freshHotlist(fx.tenants[0].id);
 const mock = await startMock();
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-gpu'] });
+const OID = state.owner.businesses[0].id;
+const OWNER = ['/dashboard', `/dashboard/${OID}`, `/dashboard/${OID}/profile`, `/dashboard/${OID}/content`, `/dashboard/${OID}/leads`, `/dashboard/${OID}/hotlist`, `/dashboard/${OID}/plan`];
 let total = 0;
 async function scan(ctx, paths, label) {
   for (const path of paths) {
@@ -43,6 +45,8 @@ try {
     const [name, value] = cookieFor('tok-admin').split('=');
     const adm = await browser.newContext({ viewport: { width: w, height: h } }); await adm.addCookies([{ name, value, url: root }]);
     await scan(adm, ADMIN, `admin@${w}`);
+    const own = await browser.newContext({ viewport: { width: w, height: h } }); const [on, ov] = cookieFor('tok-owner').split('='); await own.addCookies([{ name: on, value: ov, url: root }]);
+    await scan(own, OWNER, `owner@${w}`);
   }
 } finally { await browser.close(); await mock.close(); }
 console.log(`${total} violation group(s)`);

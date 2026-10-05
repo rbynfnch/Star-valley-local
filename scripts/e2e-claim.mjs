@@ -92,7 +92,7 @@ try {
   await page.getByText("You're verified").waitFor();
   const v = state.rpc.filter((c) => c.name === 'claim_verify').at(-1);
   check(v?.body.p_secret === '482913' && v?.body.p_user === 'u-owner' && v?.key === SERVICE_KEY, 'the cleaned code and the user went to claim_verify (service key)');
-  check(await page.getByRole('link', { name: 'View your listing' }).isVisible() && /coming soon/.test(await text()), 'success shows a link to the listing and is honest that owner tools are coming');
+  check(await page.getByRole('link', { name: 'View your listing' }).isVisible() && (await page.getByRole('link', { name: 'Open your dashboard' }).getAttribute('href')) === '/dashboard', 'success links to the listing and to the owner dashboard');
 
   // ---- failure paths ----
   state.smsFail = true;

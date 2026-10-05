@@ -19,6 +19,7 @@ export function Footer({ tenantName, tenantSlug, tagline }: { tenantName: string
           <h2 className="mb-3 font-sans text-sm font-semibold text-text-on-inverse">For businesses</h2>
           <ul className="space-y-2">
             <li><Link href="/list-your-business" className="text-text-on-inverse underline-offset-4 hover:underline">List Your Business</Link></li>
+            <li><Link href="/dashboard" className="text-text-on-inverse underline-offset-4 hover:underline">Owner dashboard</Link></li>
             <li><Link href="/pricing" className="text-text-on-inverse underline-offset-4 hover:underline">Plans and pricing</Link></li>
             <li><Link href="/suggest-business" className="text-text-on-inverse underline-offset-4 hover:underline">Suggest a business</Link></li>
             <li><Link href="/submit-event" className="text-text-on-inverse underline-offset-4 hover:underline">Submit an event</Link></li>

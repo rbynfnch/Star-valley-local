@@ -233,7 +233,7 @@ do $$ begin
 end $$;
 select test.ok((select count(*) from public.business_photos where business_id = test.ce_cb()) = 30, 'O33: the business is at 30 photos');
 select test.throws($$select test.ce_ph(test.ce_pp('over.jpg'))$$, 'O34: a 31st photo is refused', '22023');
-select test.throws($$select test.ce_ph(test.ce_pp('over.png'), 'x', 'logo')$$, 'O35: even a replacing logo is refused at the cap (stays simple)', '22023');
+select test.ok((select test.ce_ph(test.ce_pp('over.png'), 'x', 'logo')) is not null and (select count(*) from public.business_photos where business_id = test.ce_cb()) = 30, 'O35: a replacing logo is allowed at the cap, because it takes the old one''s place');
 
 -- ===== isolation: nothing leaked to the other business
 select test.as_root();

@@ -22,8 +22,8 @@ export function ClaimForm({ slug, businessName, maskedPhone, emailHint, siteKey 
     return (
       <div role="status" className="rounded-card bg-surface-card p-5 shadow-card">
         <h2 className="font-heading text-xl font-semibold text-text">You&apos;re verified</h2>
-        <p className="mt-2 text-text-body">{businessName} now shows as claimed and verified on Star Valley Local. Owner tools for editing your listing are coming soon.</p>
-        <p className="mt-4"><Link href={`/business/${slug}`} className="font-semibold text-link underline">View your listing</Link></p>
+        <p className="mt-2 text-text-body">{businessName} now shows as claimed and verified on Star Valley Local. Manage your listing, photos and requests from your dashboard.</p>
+        <p className="mt-4 flex flex-wrap gap-4"><Link href="/dashboard" className="rounded-button bg-brand px-5 py-2 font-semibold text-brand-contrast hover:bg-brand-hover">Open your dashboard</Link><Link href={`/business/${slug}`} className="font-semibold text-link underline">View your listing</Link></p>
       </div>
     );
   }
