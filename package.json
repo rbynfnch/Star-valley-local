@@ -28,6 +28,7 @@
     "e2e:placements": "node scripts/e2e-placements.mjs",
     "e2e:content": "node scripts/e2e-content.mjs",
     "e2e:email": "node scripts/e2e-email.mjs",
+    "e2e:tracking": "node scripts/e2e-tracking.mjs",
     "e2e:pricing": "node scripts/e2e-pricing.mjs"
   },
   "dependencies": {

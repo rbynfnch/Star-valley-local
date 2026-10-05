@@ -21,10 +21,10 @@ export function BusinessCard({ b, featured = false }: { b: BusinessCardModel; fe
       </div>
       {b.description && <p className="text-text-body">{b.description}</p>}
       <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        {b.telHref && <a href={b.telHref} className={action}><PhoneIcon />Call<span className="sr-only"> {b.name}</span></a>}
+        {b.telHref && <a href={b.telHref} data-track="phone_click" data-business={b.id} className={action}><PhoneIcon />Call<span className="sr-only"> {b.name}</span></a>}
         {/* A paid placement is advertising: mark the outbound link rel=sponsored (and never pass SEO credit). */}
-        {b.website && <a href={b.website.href} className={action} target="_blank" rel={featured ? "sponsored noopener noreferrer" : "noopener noreferrer"}><GlobeIcon />Website<span className="sr-only"> for {b.name} (opens in a new tab)</span></a>}
-        {b.directionsHref && <a href={b.directionsHref} className={action} target="_blank" rel="noopener noreferrer"><PinIcon />Directions<span className="sr-only"> to {b.name} (opens in a new tab)</span></a>}
+        {b.website && <a href={b.website.href} data-track="website_click" data-business={b.id} className={action} target="_blank" rel={featured ? "sponsored noopener noreferrer" : "noopener noreferrer"}><GlobeIcon />Website<span className="sr-only"> for {b.name} (opens in a new tab)</span></a>}
+        {b.directionsHref && <a href={b.directionsHref} data-track="directions_click" data-business={b.id} className={action} target="_blank" rel="noopener noreferrer"><PinIcon />Directions<span className="sr-only"> to {b.name} (opens in a new tab)</span></a>}
       </div>
     </li>
   );

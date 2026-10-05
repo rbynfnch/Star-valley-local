@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRightIcon } from "@/components/icons";
 import { BusinessCard } from "@/components/directory/BusinessCard";
+import { TrackEvents } from "@/components/tracking/Tracker";
 import { CategoryTile } from "@/components/directory/CategoryTile";
 import { EventCard } from "@/components/directory/EventCard";
 import { HeroSearch } from "@/components/directory/HeroSearch";
@@ -59,6 +60,7 @@ export default async function Home() {
           </section>
         )}
 
+        {featured.length > 0 && <TrackEvents events={featured.slice(0, 12).map((b) => ({ type: "search_appearance", business_id: b.id, surface: "home" }))} />}
         {featured.length > 0 && (
           <section aria-labelledby="featured-heading">
             <h2 id="featured-heading" className="mb-4 text-2xl font-bold">Featured local businesses</h2>

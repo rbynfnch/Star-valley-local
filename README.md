@@ -39,6 +39,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run e2e:placements` | the admin placements manager and the plan/placement forms on a business, in a real browser against the Supabase **mock** |
 | `npm run e2e:content` | the Enhanced content editor (hours, services, links, FAQs, areas, deals, photo upload) in a real browser against the Supabase **mock**; needs `SUPABASE_SERVICE_ROLE_KEY=service-secret` on the dev server |
 | `npm run e2e:email` | the email job (cron route, Postmark send, retry/permanent failure handling, bounce webhook) and the `/admin/email` queue page, against the Supabase + Postmark **mock**; the dev server needs `CRON_SECRET`, `POSTMARK_*` and `POSTMARK_API_BASE` (see the script header) |
+| `npm run e2e:tracking` | the `/api/track` beacon (bots, Do Not Track, cross-site, failures), real-browser events from profile, search, hub and home pages, and the staff Listing performance card, against the Supabase **mock** (needs `npm run fixtures`) |
 | `npm run e2e:pricing` | the public pricing page in a real browser: the **real** seeded database for products and live scarcity (Payment Link URLs are set with SQL and restored), the mock for sign-in |
 | `npm run check:layout` | real-browser check (headless Chromium): no horizontal overflow at 8 widths, and controls are actually visible where expected |
 

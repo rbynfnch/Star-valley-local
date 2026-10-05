@@ -82,7 +82,7 @@ select test.throws($$insert into public.tracking_events (tenant_id, event_type, 
 select app.rollup_tracking(current_date);
 select test.ok((select n from public.business_stats_daily where business_id = test.id('biz1') and event_type = 'phone_click') = 1, 'daily rollup counts events');
 select test.as_user(test.id('owner1'));
-select test.ok(test.count('select 1 from public.tracking_events') = 3, 'owner sees own business events');
+select test.ok(test.count('select 1 from public.tracking_events where event_type <> ''quote_request''') = 3 and test.count('select 1 from public.tracking_events where event_type = ''quote_request''') >= 1, 'owner sees own business events (including the quote requests the leads trigger recorded)');
 select test.as_user(test.id('owner2'));
 select test.ok(test.count('select 1 from public.tracking_events') = 0, 'other owner sees none');
 select test.throws($$insert into public.tracking_events (tenant_id, event_type, business_id) values (test.id('tenantA'), 'profile_view', test.id('biz2'))$$, 'owners cannot write tracking', '42501');

@@ -5,7 +5,7 @@ import { countFor, isIndexable } from "../directory/hub.ts";
 import type { Category, Community, CountRow } from "../directory/types.ts";
 
 export function sitemapPaths(categories: Category[], communities: Community[], counts: CountRow[], businessSlugs: string[] = []): string[] {
-  const paths = ["/", "/businesses"];
+  const paths = ["/", "/businesses", "/pricing"];
   for (const m of communities) if (isIndexable(countFor(counts, null, m.id))) paths.push(`/communities/${m.slug}`);
   for (const c of categories) {
     if (isIndexable(countFor(counts, c.id, null))) paths.push(`/categories/${c.slug}`);

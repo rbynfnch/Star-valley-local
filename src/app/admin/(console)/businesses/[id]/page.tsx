@@ -7,6 +7,7 @@ import { COMM_KINDS, OUTCOMES, isUuid } from "@/lib/admin/detail-input";
 import { STAGES } from "@/lib/admin/list-params";
 import { formatDay, formatStamp, label } from "@/lib/admin/format";
 import { telHref } from "@/lib/format";
+import { activityView, type Activity } from "@/lib/admin/activity-view";
 import { EntryForm, StageForm } from "./Forms";
 import { StatusForm } from "./StatusForm";
 import { ActivateListingForm, ActivatePlacementForm, EndButton, type Product } from "@/components/admin/BillingForms";
@@ -45,6 +46,8 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
   if (error) throw new Error("Could not load this business.");
   if (!data) notFound();
   const d = data as Detail;
+  const act = await supabase.rpc("admin_business_activity", { p_tenant: staff.tenant.id, p_business: id, p_days: 30 });      // a failure here only hides the card
+  const perf = act.error || !act.data ? null : activityView(act.data as Activity);
   const [cats, coms, prods] = staff.role === "admin" ? await Promise.all([
     supabase.from("categories").select("id,name").eq("tenant_id", staff.tenant.id).eq("is_active", true).order("sort_order"),
     supabase.from("communities").select("id,name").eq("tenant_id", staff.tenant.id).order("sort_order"),
@@ -111,6 +114,28 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
         </div>
 
         <div className="min-w-0 space-y-4">
+          <Card title="Listing performance (30 days)">
+            {!perf ? <Empty>Not available right now.</Empty> : perf.empty ? <Empty>Nothing recorded yet. Views and taps are counted from the day tracking started; staff, owners and bots are not counted.</Empty> : (
+              <>
+                {perf.pitch && <p className="mb-3 rounded-card bg-surface-muted p-3 text-text">{perf.pitch}</p>}
+                <dl className="space-y-1">
+                  {perf.rows.map((r) => (
+                    <div key={r.key} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <dt className="text-text-muted">{r.label}</dt>
+                      <dd className="text-text"><strong>{r.count.toLocaleString("en-US")}</strong>{r.change && <span className="ml-2 text-xs text-text-muted">{r.change}</span>}</dd>
+                    </div>
+                  ))}
+                  <div className="flex justify-between gap-x-3 border-t border-border pt-1"><dt className="text-text-muted">Different visitors</dt><dd className="text-text"><strong>{perf.visitors.toLocaleString("en-US")}</strong></dd></div>
+                </dl>
+                {perf.topSearches.length > 0 && (
+                  <div className="mt-3">
+                    <p className="font-medium text-text">Searches that showed it</p>
+                    <ul className="mt-1 space-y-0.5 text-text-muted">{perf.topSearches.map((q) => <li key={q.query} className="[overflow-wrap:anywhere]">&ldquo;{q.query}&rdquo; · {q.n}</li>)}</ul>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
           <Card title="Visibility">
             <p className="mb-2 text-text-body">{published ? "Live on the public site." : b.status === "archived" ? "Archived (not public)." : "Hidden prospect (not public)."}</p>
             <StatusForm business={b.id} status={b.status} />

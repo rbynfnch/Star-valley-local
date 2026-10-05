@@ -11,6 +11,8 @@ import { buildProfileView, type ProfileView } from "@/lib/directory/profile";
 import type { Tenant } from "@/lib/directory/types";
 import { mediaBaseUrl } from "@/lib/media";
 import { jsonLdString } from "@/lib/seo/jsonld";
+import { socialMeta } from "@/lib/seo/meta";
+import { TrackEvents } from "@/components/tracking/Tracker";
 import { normalizeHost } from "@/lib/tenant/host";
 import { originFromRequest } from "@/lib/tenant/origin";
 import { getTenant } from "@/lib/tenant/resolve";
@@ -36,7 +38,7 @@ export async function generateMetadata(props: PageProps<"/business/[slug]">): Pr
   if (!tenant) return {};
   const v = await loadProfile(tenant, (await props.params).slug);
   if (!v) return {};
-  return { title: v.title, description: v.metaDescription, alternates: { canonical: v.path } };
+  return { title: v.title, description: v.metaDescription, alternates: { canonical: v.path }, ...socialMeta({ title: v.title, description: v.metaDescription, path: v.path, siteName: tenant.name, image: v.logo?.url ?? v.photos[0]?.url }) };
 }
 
 export default async function BusinessPage(props: PageProps<"/business/[slug]">) {
@@ -58,6 +60,7 @@ export default async function BusinessPage(props: PageProps<"/business/[slug]">)
 
   return (
     <main id="main">
+      <TrackEvents events={[{ type: "profile_view", business_id: v.id, surface: "profile" }, ...v.deals.map((d) => ({ type: "deal_view", business_id: v.id, deal_id: d.id, surface: "profile" }))]} />
       {v.jsonLd.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(v.jsonLd) }} />}
 
       {cover && <CoverBanner photo={cover} />}

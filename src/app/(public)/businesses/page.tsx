@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { SearchIcon } from "@/components/icons";
 import { ActiveFilters } from "@/components/directory/ActiveFilters";
 import { BusinessCard } from "@/components/directory/BusinessCard";
+import { TrackEvents } from "@/components/tracking/Tracker";
 import { categoryStyle } from "@/components/directory/CategoryTile";
 import { FilterForm, FORM_ID } from "@/components/directory/FilterForm";
 import { FiltersDisclosure } from "@/components/directory/FiltersDisclosure";
@@ -92,6 +93,7 @@ export default async function Businesses(props: PageProps<"/businesses">) {
             </p>
             <ActiveFilters filters={filters} communities={communities} categories={categories} />
 
+            {rows.length > 0 && <TrackEvents events={rows.slice(0, 24).map((r) => ({ type: "search_appearance", business_id: r.id, surface: "search", ...(filters.q ? { query: filters.q } : {}) }))} />}
             {rows.length > 0 ? (
               <ul className="grid gap-4">
                 {rows.map((r) => <BusinessCard key={r.id} b={toBusinessCard(r, communities, categories)} featured={r.live_placement} />)}

@@ -234,6 +234,8 @@ begin
   select count(*) into before_n from public.notifications;
 
   expired := app.expire_verifications();                 -- may start grace periods
+  perform app.rollup_tracking((p_now at time zone 'UTC')::date - 2);      -- daily stats for owners and the sales pitch (re-running a day is harmless)
+  perform app.rollup_tracking((p_now at time zone 'UTC')::date - 1);
 
   -- 1. grace period running out
   for r in select g.*, p.grace_reminder_days from public.verification_grace g

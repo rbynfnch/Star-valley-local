@@ -40,6 +40,8 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  tracking: [],       // record_tracking arguments received
+  activity: null,     // admin_business_activity result (see freshActivity)
   email: { batches: [], completes: [], fails: [], suppressions: [], maintenance: 0, maintenanceFails: false, queueView: null, retries: [], retryError: null, postmark: [], postmarkReplies: [] },
 };
 export const freshDetail = () => ({
@@ -73,6 +75,13 @@ export const freshEmailQueue = () => ({
     { id: 'e0000000-0000-4000-8000-000000000002', kind: 'verification_reminder', status: 'queued', recipient_email: 'long.address.that.keeps.going.and.going@a-very-long-domain-name-for-layout-testing.example', business_id: BIZ, business_name: 'Alpha Plumbing', attempts: 0, last_error: null, created_at: '2026-10-03T15:00:00Z', send_after: '2026-10-06T15:00:00Z', sent_at: null },
     { id: 'e0000000-0000-4000-8000-000000000003', kind: 'listing_renewal_reminder', status: 'sent', recipient_email: 'sam@bravo.example', business_id: BIZ, business_name: 'Bravo Cafe', attempts: 1, last_error: null, created_at: '2026-09-20T15:00:00Z', send_after: '2026-09-20T15:00:00Z', sent_at: '2026-09-20T15:01:00Z' },
   ],
+});
+
+export const freshActivity = () => ({
+  days: 30, visitors: 143, first_event_at: '2026-09-01T00:00:00Z',
+  current: { profile_view: 212, phone_click: 14, website_click: 31, directions_click: 9, search_appearance: 640, quote_request: 2 },
+  previous: { profile_view: 180, phone_click: 14, website_click: 12 },
+  top_searches: [{ query: 'plumber in thayne', n: 40 }, { query: '<b>water heater</b>', n: 12 }],
 });
 
 export const SUB_IDS = { update: '11111111-1111-4111-8111-111111111111', business: '22222222-2222-4222-8222-222222222222', event: '33333333-3333-4333-8333-333333333333', xss: '44444444-4444-4444-8444-444444444444' };
@@ -207,6 +216,15 @@ export function startMock() {
       }
 
 
+      // ---- event tracking
+      if (rpc === 'record_tracking') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        state.tracking.push(args); return json(200, args.p_events?.length ?? 0);
+      }
+      if (rpc === 'admin_business_activity') {
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        return state.activity ? json(200, state.activity) : json(500, { message: 'boom' });
+      }
       // ---- email worker (service role) and the staff queue view
       if (rpc && /^(email_claim_batch|email_complete|email_fail|email_run_maintenance|record_email_suppression)$/.test(rpc)) {
         if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });

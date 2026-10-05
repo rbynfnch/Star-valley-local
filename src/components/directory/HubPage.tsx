@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BusinessCard } from "@/components/directory/BusinessCard";
+import { TrackEvents } from "@/components/tracking/Tracker";
 import { Pagination } from "@/components/directory/Pagination";
 import { Breadcrumbs } from "@/components/site/Breadcrumbs";
 import { breadcrumbJsonLd, breadcrumbs, hubText, itemListJsonLd, plural, relatedLinks } from "@/lib/directory/hub";
@@ -22,8 +23,12 @@ export function HubPage({ hub, tenantName, origin }: { hub: Hub; tenantName: str
   const what = category ? plural(category) : "businesses";
   const first = (page - 1) * pageSize() + 1;
 
+  const surface = category && community ? "category_community" : category ? "category" : "community";
+  const seen = [...(page === 1 ? featured : []), ...rows].filter((r, i, a) => a.findIndex((x) => x.id === r.id) === i).slice(0, 24);
+
   return (
     <main id="main">
+      {seen.length > 0 && <TrackEvents events={seen.map((r) => ({ type: "search_appearance", business_id: r.id, surface, ...(category ? { category_id: category.id } : {}), ...(community ? { community_id: community.id } : {}) }))} />}
       {origin && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString([
           breadcrumbJsonLd(origin, crumbs),

@@ -18,10 +18,10 @@ const btn = "inline-flex items-center gap-2 rounded-button px-4 py-2.5 font-semi
 export function ActionButtons({ v }: { v: ProfileView }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {v.telHref && <a href={v.telHref} className={`${btn} bg-brand text-brand-contrast hover:bg-brand-hover`}><PhoneIcon />Call<span className="sr-only"> {v.name}</span></a>}
+      {v.telHref && <a href={v.telHref} data-track="phone_click" data-business={v.id} className={`${btn} bg-brand text-brand-contrast hover:bg-brand-hover`}><PhoneIcon />Call<span className="sr-only"> {v.name}</span></a>}
       {/* a paid placement makes this link advertising: rel=sponsored */}
-      {v.website && <a href={v.website.href} target="_blank" rel={v.featured ? "sponsored noopener noreferrer" : "noopener noreferrer"} className={`${btn} border border-border bg-surface-card text-text hover:bg-surface-muted`}><GlobeIcon />Website<span className="sr-only"> for {v.name} (opens in a new tab)</span></a>}
-      {v.directionsHref && <a href={v.directionsHref} target="_blank" rel="noopener noreferrer" className={`${btn} border border-border bg-surface-card text-text hover:bg-surface-muted`}><PinIcon />Directions<span className="sr-only"> to {v.name} (opens in a new tab)</span></a>}
+      {v.website && <a href={v.website.href} data-track="website_click" data-business={v.id} target="_blank" rel={v.featured ? "sponsored noopener noreferrer" : "noopener noreferrer"} className={`${btn} border border-border bg-surface-card text-text hover:bg-surface-muted`}><GlobeIcon />Website<span className="sr-only"> for {v.name} (opens in a new tab)</span></a>}
+      {v.directionsHref && <a href={v.directionsHref} data-track="directions_click" data-business={v.id} target="_blank" rel="noopener noreferrer" className={`${btn} border border-border bg-surface-card text-text hover:bg-surface-muted`}><PinIcon />Directions<span className="sr-only"> to {v.name} (opens in a new tab)</span></a>}
     </div>
   );
 }
@@ -49,8 +49,8 @@ export function DetailsCard({ v }: { v: ProfileView }) {
   return (
     <Card title="Business details" id="details">
       <dl className="space-y-3">
-        {v.phone && <div className={row}><dt className="font-medium text-text">Phone</dt><dd>{v.telHref ? <a href={v.telHref}>{v.phone}</a> : v.phone}</dd></div>}
-        {v.website && <div className={row}><dt className="font-medium text-text">Website</dt><dd className="break-all"><a href={v.website.href} target="_blank" rel={v.featured ? "sponsored noopener noreferrer" : "noopener noreferrer"}>{v.website.label}</a></dd></div>}
+        {v.phone && <div className={row}><dt className="font-medium text-text">Phone</dt><dd>{v.telHref ? <a href={v.telHref} data-track="phone_click" data-business={v.id}>{v.phone}</a> : v.phone}</dd></div>}
+        {v.website && <div className={row}><dt className="font-medium text-text">Website</dt><dd className="break-all"><a href={v.website.href} data-track="website_click" data-business={v.id} target="_blank" rel={v.featured ? "sponsored noopener noreferrer" : "noopener noreferrer"}>{v.website.label}</a></dd></div>}
         {v.email && <div className={row}><dt className="font-medium text-text">Email</dt><dd className="break-all"><a href={`mailto:${v.email}`}>{v.email}</a></dd></div>}
         {v.addressLines.length > 0 && <div className={row}><dt className="font-medium text-text">Address</dt><dd>{v.addressLines.map((l) => <span key={l} className="block">{l}</span>)}</dd></div>}
         {v.serviceAreas.length > 0 && <div className={row}><dt className="font-medium text-text">Also serves</dt><dd>{v.serviceAreas.join(", ")}</dd></div>}

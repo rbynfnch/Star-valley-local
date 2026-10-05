@@ -14,7 +14,7 @@ export type ProfileContext = {
 };
 export type PhotoView = { url: string; alt: string; width: number; height: number };
 export type ProfileView = {
-  slug: string; name: string; tier: "free" | "enhanced"; isEnhanced: boolean; featured: boolean; claimable: boolean;
+  id: string; slug: string; name: string; tier: "free" | "enhanced"; isEnhanced: boolean; featured: boolean; claimable: boolean;
   categoryName: string | null; communityName: string | null; state: string | null;
   shortDescription: string | null; description: string | null; highlights: string[];
   addressLines: string[]; phone: string | null; telHref: string | null; website: { href: string; label: string } | null; email: string | null;
@@ -95,7 +95,7 @@ export function buildProfileView(raw: ProfileRaw, ctx: ProfileContext): ProfileV
   const catPlural = category ? plural(category) : null;
 
   const view: ProfileView = {
-    slug: b.slug, name: b.name, tier: raw.tier, isEnhanced: enhanced, featured: raw.live_placement, claimable: b.status === "unclaimed",
+    id: b.id, slug: b.slug, name: b.name, tier: raw.tier, isEnhanced: enhanced, featured: raw.live_placement, claimable: b.status === "unclaimed",
     categoryName: category?.name ?? null, communityName: community?.name ?? null, state,
     shortDescription: b.short_description, description, highlights: enhanced ? b.highlights : [],
     addressLines: [[b.address_line1, b.address_line2].filter(Boolean).join(", "), [[b.city, b.state].filter(Boolean).join(", "), b.postal_code].filter(Boolean).join(" ")].filter((l) => l.trim().length > 0),
