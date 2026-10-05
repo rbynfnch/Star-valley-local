@@ -1,0 +1,25 @@
+-- Private business columns stay private through the public API; strangers cannot read other businesses' rows directly.
+create function test.pc_rows(q text) returns bigint language plpgsql as $$ declare n bigint; begin execute q into n; return n; end $$;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000fa01', 'stranger@example.test');
+select test.as_anon();
+select test.throws($$select email from public.businesses$$, 'PC1: anon cannot read email', '42501');
+select test.throws($$select legal_name from public.businesses$$, 'PC2: nor legal_name', '42501');
+select test.throws($$select google_place_id from public.businesses$$, 'PC3: nor google_place_id', '42501');
+select test.throws($$select created_by from public.businesses$$, 'PC4: nor created_by', '42501');
+select test.throws($$select description from public.businesses$$, 'PC5: nor the Enhanced-only description', '42501');
+select test.throws($$select highlights from public.businesses$$, 'PC6: nor highlights', '42501');
+select test.throws($$select * from public.businesses$$, 'PC7: select * is refused too', '42501');
+select test.ok(test.pc_rows($$select count(name) from public.businesses where status in ('unclaimed','claimed')$$) >= 2, 'PC8: the public columns still read');
+select test.ok((select count(*) from public.business_profile(test.id('tenantA'), 'mountain-valley-plumbing')) = 1, 'PC9: the profile function still works for anon');
+select test.ok(public.business_profile(test.id('tenantA'), 'afton-eats') -> 'business' ->> 'email' is null, 'PC10: a Free listing''s email is not in its profile');
+select test.as_user('00000000-0000-0000-0000-00000000fa01');
+select test.ok(test.pc_rows($$select count(*) from public.businesses$$) = 0, 'PC11: a signed-in stranger reads no business rows directly');
+select test.as_user(test.id('salesA'));
+select test.ok(test.pc_rows($$select count(email) from public.businesses where tenant_id = test.id('tenantA')$$) >= 0 and test.pc_rows($$select count(*) from public.businesses where tenant_id = test.id('tenantA')$$) >= 4, 'PC12: staff still read every column of their tenant');
+select test.ok(test.pc_rows($$select count(*) from public.businesses where tenant_id = test.id('tenantB')$$) = 0, 'PC13: and nothing of another tenant');
+select test.as_root();
+select test.as_anon();
+select test.throws($$select uploaded_by from public.media_assets$$, 'PC14: anon cannot see who uploaded a photo', '42501');
+select test.throws($$select created_by from public.community_events$$, 'PC15: nor who created an event', '42501');
+select test.ok(test.pc_rows($$select count(storage_path) from public.media_assets$$) >= 0, 'PC16: photo paths still read');
+select test.as_root();

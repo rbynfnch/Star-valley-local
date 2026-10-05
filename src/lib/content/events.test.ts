@@ -75,7 +75,7 @@ const icsOf = (o: Partial<Parameters<typeof buildIcs>[0]> = {}) => buildIcs({ ui
 test("ICS: valid structure, CRLF, UTC times, escaped text", () => {
   const t = icsOf();
   assert.ok(t.startsWith("BEGIN:VCALENDAR\r\n") && t.endsWith("END:VCALENDAR\r\n")); assert.doesNotMatch(t.replace(/\r\n/g, ""), /[\r\n]/);
-  assert.match(t, /DTSTART:20261017T160000Z\r\n/); assert.match(t, /DTEND:20261017T220000Z\r\n/); assert.match(t, /DESCRIPTION:Pies\\, pumpkins\; fun\r\n/); assert.match(t, /LOCATION:Park\\, Afton\r\n/); assert.match(t, /UID:fair@svl\.example\r\n/);
+  assert.match(t, /DTSTART:20261017T160000Z\r\n/); assert.match(t, /DTEND:20261017T220000Z\r\n/); assert.match(t, /DESCRIPTION:Pies\\, pumpkins\\; fun\r\n/); assert.match(t, /LOCATION:Park\\, Afton\r\n/); assert.match(t, /UID:fair@svl\.example\r\n/);
 });
 test("ICS: a newline or property name in text cannot inject a property; long lines fold at 75 bytes", () => {
   const t = icsOf({ title: "Fair\r\nATTENDEE:mailto:evil@x.test", description: "x".repeat(300) });

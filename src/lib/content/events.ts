@@ -127,7 +127,7 @@ export function eventJsonLd(o: { origin: string; path: string; title: string; de
 }
 
 // ---- calendar file (RFC 5545). Text values are escaped and folded; a newline in a title can never start a new property.
-const ics = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+const ics = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
 function fold(line: string): string {
   const out: string[] = []; let cur = "", bytes = 0;
   for (const ch of line) {
