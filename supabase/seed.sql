@@ -32,13 +32,13 @@ where t.slug = 'star-valley';
 with t as (select id from public.tenants where slug = 'star-valley')
 insert into public.categories (tenant_id, slug, name, description, color_token, sort_order)
 select t.id, v.slug, v.name, v.descr, v.tok, v.ord from t, (values
-  ('eat-drink', 'Eat & Drink', 'Restaurants, cafes, bars & more', 'brick', 1),
-  ('home-property', 'Home & Property', 'Contractors, real estate, services', 'lake', 2),
-  ('health-wellness', 'Health & Wellness', 'Medical, fitness, beauty', 'sunset', 3),
-  ('family', 'Family', 'Kids, sports, activities', 'lavender', 4),
+  ('eat-drink', 'Eat & Drink', 'Restaurants, cafes, bars & more', 'terracotta', 1),
+  ('home-property', 'Home & Property', 'Contractors, real estate, services', 'valley', 2),
+  ('health-wellness', 'Health & Wellness', 'Medical, fitness, beauty', 'mustard', 3),
+  ('family', 'Family', 'Kids, sports, activities', 'sage', 4),
   ('outdoor', 'Outdoor', 'Adventure, recreation, lodging', 'navy', 5),
-  ('shopping', 'Shopping', 'Local retail, gifts and goods', 'plum', 6),
-  ('professional-services', 'Professional Services', 'Legal, finance, marketing and more', 'lake', 7)
+  ('shopping', 'Shopping', 'Local retail, gifts and goods', 'charcoal', 6),
+  ('professional-services', 'Professional Services', 'Legal, finance, marketing and more', 'valley', 7)
 ) as v(slug, name, descr, tok, ord);
 
 with t as (select id from public.tenants where slug = 'star-valley')
@@ -78,7 +78,7 @@ where t.slug = 'star-valley';
 insert into public.article_categories (tenant_id, slug, name, color_token, sort_order)
 select t.id, v.slug, v.name, v.tok, v.ord from public.tenants t, (values
   ('local-news','Local News','navy',1), ('things-to-do','Things to Do','navy',2), ('guides-resources','Guides & Resources','sage',3),
-  ('business-spotlights','Business Spotlights','brick',4), ('seasonal','Seasonal','slate',5), ('community','Community','sky',6)) as v(slug, name, tok, ord)
+  ('business-spotlights','Business Spotlights','terracotta',4), ('seasonal','Seasonal','valley',5), ('community','Community','sage',6)) as v(slug, name, tok, ord)
 where t.slug = 'star-valley';
 
 insert into public.tenant_products (tenant_id, code, name, kind, tier, slot_type, interval, amount_cents)

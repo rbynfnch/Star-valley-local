@@ -24,7 +24,7 @@ export function AuthForm({ mode, next, action, siteKey }: { mode: "sign-in" | "s
         <input id="password" name="password" type="password" autoComplete={mode === "sign-in" ? "current-password" : "new-password"} minLength={mode === "sign-up" ? 10 : undefined} required className={field} />
       </div>
       {mode === "sign-up" && <Turnstile siteKey={siteKey} />}
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       {state.notice && <p role="status" className="text-sm font-medium text-text">{state.notice}</p>}
       <button type="submit" disabled={pending} className="w-full rounded-button bg-brand px-4 py-2 font-semibold text-brand-contrast hover:bg-brand-hover disabled:opacity-60">
         {pending ? "One moment…" : mode === "sign-in" ? "Sign in" : "Create account"}

@@ -9,26 +9,26 @@ export default function Styleguide() {
   if (process.env.NODE_ENV === "production") notFound();
 
   const categoryTiles: { token: keyof typeof categoryColors; label: string }[] = [
-    { token: "brick", label: "Eat & Drink" }, { token: "lake", label: "Home & Property" },
-    { token: "sunset", label: "Health & Wellness" }, { token: "lavender", label: "Family" },
-    { token: "navy", label: "Outdoor" }, { token: "plum", label: "Shopping" }, { token: "lake", label: "Professional Services" },
+    { token: "terracotta", label: "Eat & Drink" }, { token: "valley", label: "Home & Property" },
+    { token: "mustard", label: "Health & Wellness" }, { token: "sage", label: "Family" },
+    { token: "navy", label: "Outdoor" }, { token: "charcoal", label: "Shopping" }, { token: "valley", label: "Professional Services" },
   ];
   const badges: { token: keyof typeof categoryColors; label: string }[] = [
     { token: "navy", label: "Things to Do" }, { token: "navy", label: "Local News" }, { token: "sage", label: "Guides & Resources" },
-    { token: "brick", label: "Business Spotlight" }, { token: "slate", label: "Seasonal" }, { token: "sky", label: "Community" },
+    { token: "terracotta", label: "Business Spotlight" }, { token: "valley", label: "Seasonal" }, { token: "sage", label: "Community" },
   ];
 
   return (
     <main id="main" className="mx-auto w-full max-w-[var(--container-max)] space-y-12 px-4 py-10 sm:px-8">
       <header>
         <h1 className="text-4xl font-bold">Styleguide</h1>
-        <p className="mt-2 text-text-muted">Development only. Tokens extracted from /design; see docs/DESIGN_TOKENS.md.</p>
+        <p className="mt-2 text-text-muted">Development only. The brand palette and type (docs/STYLE_GUIDE.md).</p>
       </header>
 
       <section aria-labelledby="sg-type">
         <h2 id="sg-type" className="mb-4 text-2xl font-bold">Type</h2>
         <div className="space-y-3 rounded-card bg-surface-card p-6 shadow-card">
-          <p className="font-heading text-5xl font-bold">Find Local. Discover More.</p>
+          <p className="font-heading text-5xl font-bold">Find local. Discover more.</p>
           <p className="font-heading text-3xl font-semibold">The Latest from Star Valley</p>
           <p className="text-lg text-text-body">Body: Whether you&apos;re a local or just visiting, Star Valley has something for everyone.</p>
           <p className="text-text-muted">Muted: From fall hikes and local events to great food and family fun.</p>
@@ -41,17 +41,17 @@ export default function Styleguide() {
         <h2 id="sg-buttons" className="mb-4 text-2xl font-bold">Buttons, badges, focus</h2>
         <div className="flex flex-wrap items-center gap-4 rounded-card bg-surface-card p-6 shadow-card">
           <button className="rounded-button bg-brand px-5 py-2.5 font-semibold text-brand-contrast hover:bg-brand-hover">List Your Business</button>
-          <button className="rounded-button bg-navy-700 px-5 py-2.5 font-semibold text-white hover:bg-navy-800">View Public Listing</button>
+          <button className="rounded-button bg-danger px-5 py-2.5 font-semibold text-danger-contrast hover:opacity-90">Delete (danger)</button>
           <button className="rounded-button border border-border bg-surface-card px-5 py-2.5 font-semibold text-text hover:bg-surface-muted">Directions</button>
-          <span className="rounded-chip bg-featured-bg px-2.5 py-1 text-xs font-bold uppercase text-on-light-accent">Featured</span>
-          <span className="rounded-chip bg-gold-bg px-2.5 py-1 text-xs font-bold uppercase text-on-light-accent">Gold Verified</span>
-          <span className="rounded-chip bg-verified-bg px-2.5 py-1 text-xs font-bold uppercase text-verified-text">Verified</span>
-          <span className="rounded-chip bg-verified-solid px-2.5 py-1 text-xs font-bold uppercase text-white">Verified</span>
+          <span className="rounded-chip bg-featured-bg px-2.5 py-1 text-xs font-bold text-on-light-accent">Featured</span>
+          <span className="rounded-chip bg-gold-bg px-2.5 py-1 text-xs font-bold text-on-light-accent">Gold Verified</span>
+          <span className="rounded-chip bg-verified-bg px-2.5 py-1 text-xs font-bold text-verified-text">Verified</span>
+          <span className="rounded-chip bg-verified-solid px-2.5 py-1 text-xs font-bold text-white">Verified</span>
           <a href="#sg-buttons" className="rounded-button px-3 py-2 font-medium">Tab here: visible focus ring</a>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {badges.map((b) => (
-            <span key={b.label} className="rounded-pill px-3 py-1 text-xs font-bold uppercase tracking-wide"
+            <span key={b.label} className="rounded-pill px-3 py-1 text-xs font-bold"
               style={{ background: categoryColors[b.token].bg, color: categoryColors[b.token].fg }}>{b.label}</span>
           ))}
         </div>

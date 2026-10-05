@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { categoryColors, type CategoryColorName } from "@/styles/tokens";
+import { categoryColor } from "@/styles/tokens";
 
 export function categoryStyle(token: string | null) {
-  const c = categoryColors[(token ?? "navy") as CategoryColorName] ?? categoryColors.navy;
+  const c = categoryColor(token);
   return { background: c.bg, color: c.fg };
 }
 

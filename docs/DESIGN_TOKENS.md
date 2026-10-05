@@ -65,7 +65,7 @@ Tenant resolution (host to tenant) arrives in slice 2; until then the layout use
 
 ## Provisional (identified by eye, please confirm)
 
-- **Fonts:** serif headlines (Source Serif 4) and sans body (Inter), both loaded with `next/font/google`.
+- **Fonts:** Bricolage Grotesque (headlines, prominent numbers) and Inter (UI, body), self-hosted variable woff2 via `next/font/local`.
   I matched the look; I could not extract the real typefaces from an image.
 - **Radii, container width, shadow:** `0.5rem` buttons, `0.75rem` cards, `72rem` container, a soft card shadow.
 - **Spacing scale:** Tailwind's default, not extracted.

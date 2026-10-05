@@ -20,7 +20,7 @@ function useAction(action: Act) {
 }
 const Msg = ({ s }: { s: BillingState }) => (
   <>
-    {s.error && <p role="alert" className="text-sm font-medium text-brand-text">{s.error}</p>}
+    {s.error && <p role="alert" className="text-sm font-medium text-danger-text">{s.error}</p>}
     {s.message && !s.full && <p role="status" className="text-sm font-medium text-green-800">{s.message}</p>}
   </>
 );
@@ -150,7 +150,7 @@ export function PromoteForm({ action, waitlistId, products }: { action: Act; wai
       <Term months={months} setMonths={setMonths} term={term} setTerm={setTerm} idp={`w${waitlistId.slice(0, 4)}`} />
       <Money source={source} setSource={setSource} products={products.filter((p) => p.kind === "placement")} amount={amount} setAmount={setAmount} setMonths={setMonths} productCode={product} setProductCode={setProduct} idp={`w${waitlistId.slice(0, 4)}`} />
       <Msg s={state} />
-      {state.full && <p role="alert" className="text-sm font-medium text-brand-text">That spot is still full. End a placement first.</p>}
+      {state.full && <p role="alert" className="text-sm font-medium text-danger-text">That spot is still full. End a placement first.</p>}
       <div className="flex gap-2"><button type="submit" disabled={pending} className={primary}>{pending ? "Working…" : source === "paid" ? "Mark paid and activate" : "Activate (comp)"}</button><button type="button" onClick={() => setOpen(false)} className={ghost}>Cancel</button></div>
     </form>
   );

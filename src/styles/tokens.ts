@@ -1,95 +1,89 @@
-// Design tokens: the single source of truth. Extracted from the mockups in /design (see docs/DESIGN_TOKENS.md).
+// Design tokens: the single source of truth. The colours are the locked brand palette in docs/STYLE_GUIDE.md.
 // `npm run tokens` generates src/styles/tokens.generated.css from this file; a test fails if it is stale.
 //
-// Rule: keep the mockup HUE; where a mockup colour fails WCAG 2.1 AA (CLAUDE.md §10) with the text the mockup
-// puts on it, adjust only its lightness. Every adjustment is listed in docs/DESIGN_TOKENS.md.
+// Every foreground/background pairing the UI uses is checked against WCAG 2.1 AA in tokens.test.ts (CLAUDE.md §10).
 
 export const palette = {
-  // neutrals
   white: '#ffffff',
-  'cream-50': '#fbf8f3',   // page background (mockup samples #faf8f4 .. #fcf8f3)
-  'cream-100': '#f4efe7',  // muted surface / alt section
-  'cream-200': '#e7e0d4',  // borders, dividers
-  'ink-900': '#0f2538',    // headings (mockup #001c36 .. #163356)
-  'ink-700': '#233e51',    // nav and body text (mockup #233e51)
-  'ink-600': '#526876',    // muted text (mockup #526876)
-  'ink-500': '#5f6e77',    // subtle/meta text (mockup #8b99a2 FAILED AA -> darkened to #5f6e77)
-  // navy: footer, admin and owner sidebars, primary-dark buttons
-  'navy-900': '#152e41',   // admin sidebar (mockup #152e41)
-  'navy-800': '#1c3749',   // footer, pills (mockup #1c3749)
-  'navy-700': '#214157',   // buttons on light (mockup #214157)
-  // brick: the call-to-action colour
-  'brick-600': '#bc563b',  // CTA with white text (mockup #c2593d gave 4.38:1 -> lightness lowered, 4.6:1)
-  'brick-700': '#9f4932',  // hover, and brick used AS TEXT on cream (needs 4.5:1)
-  // blues
-  'lake-700': '#255c90',   // Home & Property tile, links (mockup #255c90)
-  'lake-500': '#38729e',   // Community badge, focus ring (mockup #38729e)
-  // warm accents
-  'amber-500': '#dc882d',  // Health & Wellness tile (mockup #dc882d); takes DARK text, white gives 2.8:1
-  'orange-400': '#f19561', // "Featured" badge (mockup #f19561); takes dark text
-  'gold-300': '#ecca98',   // "Gold Verified" badge (mockup #ecca98); takes dark text
-  // purples
-  'lavender-400': '#b49bc0', // Family tile (mockup #b49bc0); takes dark text
-  'lavender-500': '#a786bd', // Shopping tile / Events badge (mockup #a786bd); takes dark text
-  'lavender-700': '#8e63aa', // purple that CAN take white text (lightness lowered from #a786bd)
-  // greens and slates
-  'sage-600': '#627a55',   // Guides & Resources badge (mockup #627a55)
-  'slate-600': '#4c6d74',  // Seasonal badge (mockup #4c6d74)
-  'green-100': '#c3ddc8',  // "Verified" pill background (mockup #c3ddc8)
-  'green-700': '#577e59',  // solid Verified green with white text (mockup #69976b gave 3.4:1 -> lowered)
-  'green-800': '#446246',  // text on green-100
+  // The locked brand palette (docs/STYLE_GUIDE.md section 1). Do not change these values.
+  navy: '#193153',         // Star Valley Navy: primary brand, headers, logo
+  charcoal: '#1F2428',     // primary text, dark backgrounds
+  'valley-blue': '#355C73', // secondary brand: links, hover, focus
+  terracotta: '#A24B2A',   // warm accent, editorial emphasis, errors and destructive actions
+  sage: '#5E6B4E',         // Original Sage: natural secondary (takes white text)
+  'sage-light': '#7C8B63', // New Sage: fresh lighter green (graphic use; text on it is large-only)
+  stone: '#68727A',        // secondary neutral (text on white only)
+  'sky-gray': '#A7B0B5',   // light neutral: dividers, backgrounds, disabled
+  cream: '#E8E1D6',        // primary light background (bands and sections; long reading stays on white)
+  mustard: '#D2A52E',      // energy, highlights, Featured, Hotlist (background or accent, never text on Cream)
+  // One derived tone, the only one: Stone darkened (same hue, lightness only) so muted text reaches 4.5:1 on Cream too.
+  'stone-700': '#566068',
 } as const;
 
 export type PaletteKey = keyof typeof palette;
 
 // Semantic tokens: what components use, and what a tenant may override (THEME_KEYS).
 export const semantic = {
-  brand: palette['brick-600'],
-  'brand-hover': palette['brick-700'],
-  'brand-contrast': palette.white,              // text on brand
-  'brand-text': palette['brick-700'],           // brand colour used as text on light surfaces
-  'surface-page': palette['cream-50'],
+  brand: palette.navy,
+  'brand-hover': palette['valley-blue'],
+  'brand-contrast': palette.cream,              // text on brand
+  'brand-text': palette.navy,                   // brand colour used as text on light surfaces
+  danger: palette.terracotta,                   // destructive buttons, error and warning text
+  'danger-contrast': palette.white,
+  'danger-text': palette.terracotta,            // 5.87:1 on white, 4.52:1 on Cream (keep it 16px or larger on Cream)
+  'surface-page': palette.white,
   'surface-card': palette.white,
-  'surface-muted': palette['cream-100'],
-  'surface-inverse': palette['navy-800'],       // footer
-  'surface-inverse-deep': palette['navy-900'],  // admin / owner sidebar
-  'text-on-inverse': palette.white,
-  text: palette['ink-900'],
-  'text-body': palette['ink-700'],
-  'text-muted': palette['ink-600'],
-  'text-subtle': palette['ink-500'],
-  link: palette['lake-700'],
-  focus: palette['lake-500'],
-  border: palette['cream-200'],
+  'surface-muted': palette.cream,
+  'surface-inverse': palette.navy,              // footer
+  'surface-inverse-deep': palette.charcoal,     // admin / owner sidebar
+  'text-on-inverse': palette.cream,
+  text: palette.charcoal,
+  'text-body': palette.charcoal,
+  'text-muted': palette['stone-700'],
+  'text-subtle': palette.stone,                 // white backgrounds only (3.78:1 on Cream)
+  link: palette['valley-blue'],
+  focus: palette['valley-blue'],
+  border: palette['sky-gray'],                  // decoration: dividers and card edges (inputs use a darker border)
   // status
-  'verified-bg': palette['green-100'],
-  'verified-text': palette['green-800'],
-  'verified-solid': palette['green-700'],
-  'gold-bg': palette['gold-300'],
-  'featured-bg': palette['orange-400'],
-  'on-light-accent': palette['navy-900'],       // dark text used on amber / orange / gold / lavender fills
+  'verified-bg': palette.sage,
+  'verified-text': palette.white,
+  'verified-solid': palette.sage,
+  'gold-bg': palette.mustard,
+  'featured-bg': palette.mustard,
+  'on-light-accent': palette.charcoal,          // text on Mustard fills
+  // Hotlist
+  'hotlist-bg': palette.mustard,
+  'hotlist-text': palette.charcoal,
 } as const;
 
 export type SemanticKey = keyof typeof semantic;
 
 // Category tiles and article badges. categories.color_token / article_categories.color_token store the NAME.
+// A few calm accents, not a rainbow (STYLE_GUIDE section 2). Each carries the text colour that passes AA on it.
 export const categoryColors = {
-  brick:    { bg: palette['brick-600'],    fg: palette.white },
-  lake:     { bg: palette['lake-700'],     fg: palette.white },
-  sunset:   { bg: palette['amber-500'],    fg: palette['navy-900'] },
-  lavender: { bg: palette['lavender-400'], fg: palette['navy-900'] },
-  plum:     { bg: palette['lavender-500'], fg: palette['navy-900'] },
-  navy:     { bg: palette['navy-800'],     fg: palette.white },
-  sage:     { bg: palette['sage-600'],     fg: palette.white },
-  slate:    { bg: palette['slate-600'],    fg: palette.white },
-  sky:      { bg: palette['lake-500'],     fg: palette.white },
+  navy:       { bg: palette.navy,          fg: palette.cream },
+  valley:     { bg: palette['valley-blue'], fg: palette.white },
+  sage:       { bg: palette.sage,          fg: palette.white },
+  terracotta: { bg: palette.terracotta,    fg: palette.white },
+  mustard:    { bg: palette.mustard,       fg: palette.charcoal },
+  charcoal:   { bg: palette.charcoal,      fg: palette.cream },
 } as const;
 
 export type CategoryColorName = keyof typeof categoryColors;
 
+/** Colour names stored in the database before the brand palette: they keep working and map to the nearest current accent. */
+export const legacyCategoryColors: Record<string, CategoryColorName> = {
+  brick: 'terracotta', lake: 'valley', sunset: 'mustard', lavender: 'sage', plum: 'terracotta', slate: 'valley', sky: 'valley',
+};
+export function categoryColor(token: string | null | undefined): { bg: string; fg: string } {
+  const name = token && token in categoryColors ? (token as CategoryColorName) : token ? legacyCategoryColors[token] : undefined;
+  return categoryColors[name ?? 'navy'];
+}
+
 export const typography = {
-  // Provisional: identified by eye from the mockups (serif headlines, humanist sans body). Confirm the faces.
-  'font-heading': 'var(--font-heading-face), Georgia, "Times New Roman", serif',
+  // Bricolage Grotesque for headlines, feature titles, section headings, Hotlist and prominent numbers; Inter for everything else.
+  // Both are self-hosted (src/app/fonts, loaded in src/app/layout.tsx), so there is no third-party request at runtime.
+  'font-heading': 'var(--font-heading-face), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   'font-sans': 'var(--font-sans-face), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 } as const;
 
@@ -100,7 +94,7 @@ export const shape = {
   'radius-card': '0.75rem',
   'radius-pill': '9999px',
   'container-max': '72rem',
-  'shadow-card': '0 1px 2px rgb(21 46 65 / 0.06), 0 4px 12px rgb(21 46 65 / 0.05)',
+  'shadow-card': '0 1px 2px rgb(25 49 83 / 0.07), 0 4px 14px rgb(25 49 83 / 0.06)',
 } as const;
 
 // Tenant-overridable keys (camelCase in tenants.theme jsonb) -> semantic CSS variable.
@@ -130,6 +124,7 @@ export type ThemeKey = keyof typeof THEME_KEYS;
 export type Pairing = { name: string; fg: SemanticKey | PaletteKey; bg: SemanticKey | PaletteKey; min: number };
 export const pairings: Pairing[] = [
   { name: 'body text on page', fg: 'text-body', bg: 'surface-page', min: 4.5 },
+  { name: 'body text on Cream', fg: 'text-body', bg: 'surface-muted', min: 4.5 },
   { name: 'heading on page', fg: 'text', bg: 'surface-page', min: 4.5 },
   { name: 'heading on card', fg: 'text', bg: 'surface-card', min: 4.5 },
   { name: 'muted text on page', fg: 'text-muted', bg: 'surface-page', min: 4.5 },
@@ -137,22 +132,31 @@ export const pairings: Pairing[] = [
   { name: 'muted text on muted surface', fg: 'text-muted', bg: 'surface-muted', min: 4.5 },
   { name: 'subtle text on page', fg: 'text-subtle', bg: 'surface-page', min: 4.5 },
   { name: 'subtle text on card', fg: 'text-subtle', bg: 'surface-card', min: 4.5 },
-  { name: 'subtle text on muted surface', fg: 'text-subtle', bg: 'surface-muted', min: 4.5 },
   { name: 'link on page', fg: 'link', bg: 'surface-page', min: 4.5 },
   { name: 'link on card', fg: 'link', bg: 'surface-card', min: 4.5 },
+  { name: 'link on Cream', fg: 'link', bg: 'surface-muted', min: 4.5 },
   { name: 'brand text on page', fg: 'brand-text', bg: 'surface-page', min: 4.5 },
   { name: 'brand text on card', fg: 'brand-text', bg: 'surface-card', min: 4.5 },
+  { name: 'brand text on Cream', fg: 'brand-text', bg: 'surface-muted', min: 4.5 },
   { name: 'button text on brand', fg: 'brand-contrast', bg: 'brand', min: 4.5 },
   { name: 'button text on brand hover', fg: 'brand-contrast', bg: 'brand-hover', min: 4.5 },
+  { name: 'danger text on page', fg: 'danger-text', bg: 'surface-page', min: 4.5 },
+  { name: 'danger text on card', fg: 'danger-text', bg: 'surface-card', min: 4.5 },
+  { name: 'danger text on Cream', fg: 'danger-text', bg: 'surface-muted', min: 4.5 },
+  { name: 'text on danger button', fg: 'danger-contrast', bg: 'danger', min: 4.5 },
   { name: 'footer text on inverse', fg: 'text-on-inverse', bg: 'surface-inverse', min: 4.5 },
   { name: 'sidebar text on deep inverse', fg: 'text-on-inverse', bg: 'surface-inverse-deep', min: 4.5 },
+  { name: 'white on inverse', fg: 'white', bg: 'surface-inverse', min: 4.5 },
+  { name: 'text on the hero gradient end (Valley Blue)', fg: 'text-on-inverse', bg: 'valley-blue', min: 4.5 },
   { name: 'focus ring on page (UI)', fg: 'focus', bg: 'surface-page', min: 3 },
   { name: 'focus ring on card (UI)', fg: 'focus', bg: 'surface-card', min: 3 },
+  { name: 'focus ring on Cream (UI)', fg: 'focus', bg: 'surface-muted', min: 3 },
   { name: 'verified pill', fg: 'verified-text', bg: 'verified-bg', min: 4.5 },
   { name: 'solid verified badge', fg: 'white', bg: 'verified-solid', min: 4.5 },
   { name: 'gold verified badge', fg: 'on-light-accent', bg: 'gold-bg', min: 4.5 },
   { name: 'featured badge', fg: 'on-light-accent', bg: 'featured-bg', min: 4.5 },
-  { name: 'white on lavender-700', fg: 'white', bg: 'lavender-700', min: 4.5 },
+  { name: 'Hotlist button and label', fg: 'hotlist-text', bg: 'hotlist-bg', min: 4.5 },
+  { name: 'Mustard on Navy (Hotlist on dark)', fg: 'mustard', bg: 'navy', min: 4.5 },
 ];
 
 // Category tiles are checked separately (each name carries its own foreground).

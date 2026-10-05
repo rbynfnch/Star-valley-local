@@ -11,7 +11,7 @@ export const primary = "rounded-button bg-brand px-5 py-2 text-sm font-semibold 
 export const ghost = "rounded-button border border-slate-600 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60";
 
 export const Msg = ({ s }: { s: EditorialState }) => (<>
-  {s.error && <p role="alert" className="text-sm font-medium text-brand-text">{s.error}</p>}
+  {s.error && <p role="alert" className="text-sm font-medium text-danger-text">{s.error}</p>}
   {s.message && <p role="status" className="text-sm font-medium text-green-800">{s.message}</p>}
 </>);
 
@@ -36,7 +36,7 @@ export function DeleteButton({ kind, id, what }: { kind: "article" | "event"; id
       {!confirm ? <button type="button" className={ghost} onClick={() => setConfirm(true)}>Delete {what}…</button> : (
         <>
           <span className="text-sm text-text">Delete this {what} for good?</span>
-          <button type="button" disabled={pending} className="rounded-button bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" onClick={() => { const fd = new FormData(); fd.set("id", id); startTransition(() => dispatch(fd)); }}>Yes, delete</button>
+          <button type="button" disabled={pending} className="rounded-button bg-danger px-4 py-2 text-sm font-semibold text-danger-contrast disabled:opacity-60" onClick={() => { const fd = new FormData(); fd.set("id", id); startTransition(() => dispatch(fd)); }}>Yes, delete</button>
           <button type="button" className={ghost} onClick={() => setConfirm(false)}>Keep</button>
         </>
       )}

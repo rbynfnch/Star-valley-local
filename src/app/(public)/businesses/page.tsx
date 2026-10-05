@@ -56,7 +56,7 @@ export default async function Businesses(props: PageProps<"/businesses">) {
     <main id="main">
       <form id={FORM_ID} action="/businesses" method="get" role="search" aria-label="Business directory search" />
 
-      <section aria-labelledby="dir-heading" className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_55%,var(--lake-700)_100%)] text-text-on-inverse">
+      <section aria-labelledby="dir-heading" className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_55%,var(--valley-blue)_100%)] text-text-on-inverse">
         <div className="mx-auto w-full max-w-[var(--container-max)] space-y-4 px-4 py-10 sm:px-8">
           <h1 id="dir-heading" className="font-heading text-4xl font-bold text-text-on-inverse">Business Directory</h1>
           <p className="max-w-xl text-lg text-text-on-inverse">Find trusted local businesses{region ? ` in ${region}` : ""}.</p>

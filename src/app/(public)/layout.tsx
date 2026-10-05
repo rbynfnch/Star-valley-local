@@ -32,9 +32,9 @@ export default async function PublicLayout({ children }: LayoutProps<"/">) {
   return (
     <div style={style as React.CSSProperties} className="flex flex-1 flex-col bg-surface-page text-text-body">
       <ClickTracker />
-      <Header tenantName={tenant.name} />
+      <Header tenantName={tenant.name} tenantSlug={tenant.slug} />
       <div className="flex flex-1 flex-col">{children}</div>
-      <Footer tenantName={tenant.name} tagline={tenant.tagline} />
+      <Footer tenantName={tenant.name} tenantSlug={tenant.slug} tagline={tenant.tagline} />
     </div>
   );
 }

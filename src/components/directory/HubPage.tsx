@@ -35,7 +35,7 @@ export function HubPage({ hub, tenantName, origin }: { hub: Hub; tenantName: str
           ...(rows.length ? [itemListJsonLd(origin, text.h1, rows, first)] : []),
         ]) }} />
       )}
-      <section aria-labelledby="hub-heading" className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_55%,var(--lake-700)_100%)] text-text-on-inverse">
+      <section aria-labelledby="hub-heading" className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_55%,var(--valley-blue)_100%)] text-text-on-inverse">
         <div className="mx-auto w-full max-w-[var(--container-max)] space-y-4 px-4 py-10 sm:px-8">
           <Breadcrumbs crumbs={crumbs} />
           <h1 id="hub-heading" className="font-heading text-4xl font-bold text-text-on-inverse">{text.h1}</h1>

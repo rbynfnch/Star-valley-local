@@ -71,9 +71,9 @@ export default async function BusinessPage(props: PageProps<"/business/[slug]">)
             {v.logo && <div className="relative size-20 shrink-0 overflow-hidden rounded-card bg-white"><Image src={v.logo.url} alt={v.logo.alt} fill sizes="80px" className="object-contain p-1" /></div>}
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                {v.featured && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-on-light-accent">Featured</span>}
-                {v.verification?.level === "gold" && <span className="rounded-chip bg-gold-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-on-light-accent">{v.verification.label}</span>}
-                {v.verification?.level === "green" && <span className="rounded-chip bg-verified-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-verified-text">{v.verification.label}</span>}
+                {v.featured && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">Featured</span>}
+                {v.verification?.level === "gold" && <span className="rounded-chip bg-gold-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">{v.verification.label}</span>}
+                {v.verification?.level === "green" && <span className="rounded-chip bg-verified-bg px-2 py-0.5 text-xs font-bold text-verified-text">{v.verification.label}</span>}
               </div>
               <h1 className="font-heading text-3xl font-bold text-text-on-inverse sm:text-4xl">{v.name}</h1>
               <p className="text-text-on-inverse">{[v.categoryName, v.communityName && `${v.communityName}, ${v.state ?? ""}`.replace(/, $/, ""), v.priceLabel].filter(Boolean).join(" · ")}</p>

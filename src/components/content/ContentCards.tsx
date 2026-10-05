@@ -12,7 +12,7 @@ export function EventRow({ ev, tz }: { ev: EventItem; tz: string }) {
     <li className="overflow-hidden rounded-card bg-surface-card shadow-card">
       <Link href={`/events/${ev.slug}`} className="flex gap-4 p-4 hover:bg-surface-muted">
         <time dateTime={ev.start.toISOString()} className="flex w-16 shrink-0 flex-col items-center self-start rounded-chip bg-surface-inverse py-2 text-text-on-inverse">
-          <span className="text-xs font-bold tracking-wide">{day.month}</span>
+          <span className="text-xs font-bold">{day.month}</span>
           <span className="font-heading text-2xl font-bold leading-none">{day.day}</span>
           <span className="text-[0.7rem] font-semibold opacity-90">{day.weekday}</span>
         </time>
@@ -34,7 +34,7 @@ export function DealItem({ d }: { d: DealCard }) {
   return (
     <li className="flex flex-col gap-2 rounded-card bg-surface-card p-5 shadow-card">
       <div className="flex flex-wrap items-center gap-2">
-        {d.badge && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold tracking-wide text-on-light-accent">{d.badge}</span>}
+        {d.badge && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">{d.badge}</span>}
         {d.endsSoon && <span className="rounded-chip bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-body">Ends soon</span>}
       </div>
       <h3 className="font-heading text-xl font-bold leading-snug [overflow-wrap:anywhere]">{d.title}</h3>
@@ -55,7 +55,7 @@ export function ArticleTile({ a, priority = false }: { a: ArticleCard; priority?
     <li className="flex flex-col overflow-hidden rounded-card bg-surface-card shadow-card">
       <Link href={`/articles/${a.slug}`} className="relative block aspect-[16/9] bg-surface-muted" tabIndex={-1} aria-hidden="true">
         {a.image && <Image src={a.image.url} alt="" fill sizes="(min-width: 1024px) 33vw, 100vw" priority={priority} className="object-cover" />}
-        {a.categoryName && <span style={categoryStyle(a.categoryColor)} className="absolute left-3 top-3 rounded-pill px-3 py-1 text-xs font-bold uppercase tracking-wide">{a.categoryName}</span>}
+        {a.categoryName && <span style={categoryStyle(a.categoryColor)} className="absolute left-3 top-3 rounded-pill px-3 py-1 text-xs font-bold">{a.categoryName}</span>}
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="text-sm text-text-muted"><time dateTime={a.date}>{a.dateText}</time></p>

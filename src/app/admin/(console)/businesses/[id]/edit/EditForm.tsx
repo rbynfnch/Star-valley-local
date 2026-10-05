@@ -54,7 +54,7 @@ export function EditForm({ business, values, communities, categories, published 
         <textarea id="description" name="description" rows={6} maxLength={1500} value={long} onChange={(e) => setLong(e.target.value)} className={field} />
       </div>
       {text("hours_note", "Hours note", { maxLength: 300, placeholder: "e.g. Emergency service available" })}
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       <div className="flex items-center gap-4">
         <button type="submit" disabled={pending} className="rounded-button bg-brand px-5 py-2 text-sm font-semibold text-brand-contrast hover:bg-brand-hover disabled:opacity-60">{pending ? "Saving…" : "Save changes"}</button>
         <Link href={`/admin/businesses/${business}`} className="text-sm font-medium text-link underline">Cancel</Link>

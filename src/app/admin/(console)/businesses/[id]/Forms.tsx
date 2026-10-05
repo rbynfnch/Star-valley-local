@@ -7,7 +7,7 @@ const field = "mt-1 block w-full rounded-button border border-slate-600 bg-surfa
 const btn = "rounded-button bg-brand px-4 py-1.5 text-sm font-semibold text-brand-contrast hover:bg-brand-hover disabled:opacity-60";
 const Msg = ({ s }: { s: FormState }) => (
   <>
-    {s.error && <p role="alert" className="text-sm font-medium text-brand-text">{s.error}</p>}
+    {s.error && <p role="alert" className="text-sm font-medium text-danger-text">{s.error}</p>}
     {s.saved && <p role="status" className="text-sm font-medium text-green-800">{s.saved}</p>}
   </>
 );

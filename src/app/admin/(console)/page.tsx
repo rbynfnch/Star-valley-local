@@ -20,7 +20,7 @@ export default async function Dashboard() {
   return (
     <>
       <h1 className="font-heading text-2xl font-semibold text-text">Dashboard</h1>
-      {error && <p role="alert" className="mt-4 text-sm font-medium text-brand-text">Could not load the counts.</p>}
+      {error && <p role="alert" className="mt-4 text-sm font-medium text-danger-text">Could not load the counts.</p>}
       <dl className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3">
         {TILES.map((t) => (
           <div key={t.key} className="rounded-card bg-surface-card p-4 shadow-card">

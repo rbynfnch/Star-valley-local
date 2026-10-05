@@ -46,10 +46,10 @@ export default async function ArticlePage(props: PageProps<"/articles/[slug]">) 
   return (
     <main id="main">
       {origin && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(articleJsonLd({ origin, path: v.path, title: v.title, description: v.description, published: v.card.date, author: v.card.authorName, image: v.card.image?.url ?? null, siteName: tenant.name })) }} />}
-      <header className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_55%,var(--lake-700)_100%)] text-text-on-inverse">
+      <header className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_55%,var(--valley-blue)_100%)] text-text-on-inverse">
         <div className="mx-auto w-full max-w-[var(--container-max)] space-y-4 px-4 py-8 sm:px-8">
           <Breadcrumbs crumbs={crumbs} />
-          {v.card.categoryName && <p className="text-sm font-bold uppercase tracking-wide text-text-on-inverse">{v.card.categoryName}</p>}
+          {v.card.categoryName && <p className="text-sm font-bold text-text-on-inverse">{v.card.categoryName}</p>}
           <h1 className="max-w-3xl font-heading text-4xl font-bold text-text-on-inverse [overflow-wrap:anywhere]">{v.title}</h1>
           <p className="text-text-on-inverse">{[v.card.authorName && `By ${v.card.authorName}`, v.card.dateText, v.card.readText].filter(Boolean).join(" · ")}</p>
         </div>

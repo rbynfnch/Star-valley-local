@@ -7,7 +7,7 @@ type Named = { slug: string; name: string };
 function Group({ legend, children }: { legend: string; children: React.ReactNode }) {
   return (
     <fieldset className="border-t border-border pt-4">
-      <legend className="mb-2 font-sans text-sm font-bold uppercase tracking-wide text-text">{legend}</legend>
+      <legend className="mb-2 font-sans text-sm font-bold text-text">{legend}</legend>
       <div className="space-y-1.5">{children}</div>
     </fieldset>
   );
@@ -28,7 +28,7 @@ export function FilterForm({ filters, communities, categories }: { filters: Sear
   return (
     <div className="space-y-4">
       <div>
-        <label htmlFor="dir-sort" className="mb-1 block text-sm font-bold uppercase tracking-wide text-text">Sort by</label>
+        <label htmlFor="dir-sort" className="mb-1 block text-sm font-bold text-text">Sort by</label>
         <select id="dir-sort" form={FORM_ID} name="sort" defaultValue={filters.sort} className="w-full rounded-button border border-border bg-surface-card px-3 py-2 text-text">
           <option value="relevance">Most relevant</option>
           <option value="name">Name (A to Z)</option>

@@ -30,7 +30,7 @@ export default async function ModerationPage({ searchParams }: PageProps<"/admin
         <Link href={`/admin/moderation${modQuery(f, { kind: null, page: 1 })}`} aria-current={f.kind === null ? "page" : undefined} className={`${link} ${f.kind === null ? on : "text-text"}`}>All types</Link>
         {KINDS.map((k) => <Link key={k} href={`/admin/moderation${modQuery(f, { kind: k, page: 1 })}`} aria-current={f.kind === k ? "page" : undefined} className={`${link} ${f.kind === k ? on : "text-text"}`}>{KIND_LABEL[k]}{res.pending_by_kind[k] ? ` (${res.pending_by_kind[k]})` : ""}</Link>)}
       </nav>
-      {error && <p role="alert" className="mt-4 text-sm font-medium text-brand-text">Could not load the queue.</p>}
+      {error && <p role="alert" className="mt-4 text-sm font-medium text-danger-text">Could not load the queue.</p>}
       <p className="mt-4 text-sm text-text-muted" aria-live="polite">{res.total} {STATUS_LABEL[f.status].toLowerCase()}</p>
       {/* always mounted: the confirmation of the last review in the queue must outlive the list emptying */}
       {!error && <ModerationList cards={cards} empty={f.status === "pending" ? "Nothing waiting for review." : "Nothing here."} />}

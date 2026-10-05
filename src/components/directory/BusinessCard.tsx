@@ -9,9 +9,9 @@ export function BusinessCard({ b, featured = false }: { b: BusinessCardModel; fe
   return (
     <li className="flex flex-col gap-3 rounded-card bg-surface-card p-5 shadow-card">
       <div className="flex flex-wrap items-center gap-2">
-        {featured && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-on-light-accent">Featured</span>}
-        {b.verification?.level === "gold" && <span className="rounded-chip bg-gold-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-on-light-accent">{b.verification.label}</span>}
-        {b.verification?.level === "green" && <span className="rounded-chip bg-verified-bg px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-verified-text">{b.verification.label}</span>}
+        {featured && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">Featured</span>}
+        {b.verification?.level === "gold" && <span className="rounded-chip bg-gold-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">{b.verification.label}</span>}
+        {b.verification?.level === "green" && <span className="rounded-chip bg-verified-bg px-2 py-0.5 text-xs font-bold text-verified-text">{b.verification.label}</span>}
       </div>
       <div>
         <h3 className="font-heading text-xl font-bold leading-snug">

@@ -37,7 +37,7 @@ function ReviewForm({ c, onDone }: { c: CardView; onDone: (m: string) => void })
           <div className="mt-2"><button type="button" onClick={submit("approve", true)} disabled={pending} className={`${btn} border border-slate-600 text-text`}>Add it anyway</button></div>
         </div>
       )}
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       <div className="flex flex-wrap gap-2">
         {c.canApprove && <button type="button" onClick={submit("approve")} disabled={pending} className={`${btn} bg-brand text-brand-contrast hover:bg-brand-hover`}>{pending ? "Working…" : "Approve"}</button>}
         <button type="button" onClick={submit("reject")} disabled={pending} className={`${btn} border border-slate-600 text-text`}>Reject</button>

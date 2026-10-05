@@ -47,7 +47,7 @@ export function ClaimForm({ slug, businessName, maskedPhone, emailHint, siteKey 
           <label htmlFor="code" className="block text-sm font-medium text-text">Code</label>
           <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 -]*" maxLength={12} required className={field} />
         </div>
-        {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+        {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
         <div className="flex flex-wrap items-center gap-4">
           <button type="submit" disabled={pending} className={btn}>{pending ? "Checking…" : "Verify"}</button>
           <button type="button" onClick={() => setState({ step: "start" })} className="text-sm font-medium text-link underline">Send a new code</button>
@@ -64,7 +64,7 @@ export function ClaimForm({ slug, businessName, maskedPhone, emailHint, siteKey 
         {emailHint && <li>Email to <strong>{emailHint}</strong></li>}
       </ul>
       <Turnstile siteKey={siteKey} />
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       <div className="flex flex-wrap gap-3">
         {maskedPhone && <button type="submit" name="method" value="sms_code" disabled={pending} className={btn}>{pending ? "Sending…" : "Text me a code"}</button>}
         {emailHint && <button type="submit" name="method" value="email_link" disabled={pending} className={maskedPhone ? "rounded-button border border-slate-600 px-5 py-2 font-semibold text-text disabled:opacity-60" : btn}>{pending ? "Sending…" : "Email me a link"}</button>}

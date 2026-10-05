@@ -189,221 +189,23 @@ excellent small-size rendering.
 | H2 | Strong section heading |
 | H3 | Compact supporting headline |
 | Body | Simple and highly readable |
-| Label / eyebrow | Small uppercase with generous letter spacing |
+| Label / eyebrow | Small, sentence case, semibold (all-caps avoided per the typography decision) |
 
-> **Open decision: the actual typefaces are not chosen.** The site currently uses Source Serif 4 for headlines and Inter
-> for body, picked by eye from the early mockups. A serif headline does not match "modern sans with character". Candidate
-> display faces to review on real headlines are listed in "Applying this guide". Self-hosting through `next/font` keeps the
-> choice free of runtime third-party requests.
+> **Decided: Bricolage Grotesque + Inter.** Bricolage Grotesque is used for headlines, feature titles, major section
+> headings, Hotlist branding and prominent numbers. Inter is used for navigation, body copy, listings, metadata, buttons,
+> forms and UI. Both are OFL variable fonts, self-hosted (latin subset) through `next/font/local` in `src/app/layout.tsx`
+> with licences in `src/app/fonts/`. Weights stay restrained (regular, medium, semibold, bold), and all-caps and
+> decorative type are avoided.
 
----
-
-## 07. Typography rules
-
-### Headlines
-
-Prefer **What's Happening in Star Valley** over **WHAT'S HAPPENING IN STAR VALLEY!!!** The brand has confidence without
-shouting.
-
-- Use **sentence case** (or title case for named things) for most digital content.
-- Uppercase is reserved for: navigation, small labels, categories, dates, short calls to action, occasional campaign
-  graphics.
-- No exclamation marks in headlines.
-
----
-
-## 08. Photography style
-
-Photography should feel **documentary, warm and real.**
-
-| Priority | Over |
-|---|---|
-| Real people | polished stock photography |
-| Real businesses | generic storefronts |
-| Real events | staged community scenes |
-| Real landscapes | generic mountain imagery |
-
-**Color treatment.** Natural, slightly warm, crisp, dimensional, minimally processed. Avoid heavy filters. The colors of
-Star Valley should come from the actual environment, not from an Instagram preset.
-
----
-
-## 09. Graphic elements
-
-Star Valley Local should eventually develop a small library of proprietary graphic elements.
-
-1. **The Star.** A subtle reference to Star Valley. Not a generic five-point star pasted onto everything.
-2. **Valley line.** A simplified geographic line or contour that can become a recurring visual motif.
-3. **Editorial rule.** Thin horizontal lines can separate: LOCAL / BUSINESS / EVENTS / HOTLIST.
-4. **Corner shapes.** Small geometric accents create visual continuity across social graphics.
-5. **Organic shapes.** Sage and mustard can occasionally appear as organic blocks behind photography or headlines.
-
----
-
-## 10. The Star Valley Local "Flame"
-
-For Local Hotlist, this gets its own visual language. The flame should be:
-
-- proprietary
-- simple
-- recognizable at 24px
-- strong enough for merchandise
-- recognizable without the wordmark
-- related to Star Valley Local
-- **not** a generic flame emoji shape
-
-### Hotlist color treatment
-
-| Level | Colors |
-|---|---|
-| Primary | Navy + Mustard |
-| Secondary | Cream + Navy |
-| Occasional | Navy + Terracotta |
-
-The mustard becomes the visual signal for **HOT / NOW / DON'T MISS.**
-
-> The flame mark has to be designed (it is an illustration task, not something to generate in code). Until it exists, the
-> site uses a text label ("Hotlist") with no flame glyph.
-
----
-
-## 11. Iconography
-
-Icons should be **simple + geometric + slightly rounded.**
-
-**Avoid:** detailed illustrations, overly thin line icons, cartoon icons, mismatched icon sets, excessive Western imagery.
-
-**Suggested set:** Location, Events, Hotlist, Favorites, Featured, Business, Food, Shopping, Deals, Community.
-
-The production icon set uses **one custom style**, not emoji. (Emoji in the list above are only a shorthand for the
-concepts.)
-
-Practical rules for the build: one stroke width and one corner radius across the whole set; icons that carry meaning have a
-text label or accessible name; icon-only controls need an accessible name and a 3:1 contrast.
-
----
-
-## 12. Buttons
-
-| Button | Treatment | Example |
-|---|---|---|
-| **Primary CTA** | Navy background, Cream text | EXPLORE LOCAL |
-| **Secondary CTA** | Cream background, Navy border, Navy text | VIEW EVENTS |
-| **Hotlist CTA** | Mustard background, Charcoal or Navy text | SEE THE HOTLIST |
-
-Buttons are: rounded but not pill-shaped everywhere; substantial; highly readable; action-oriented. Button labels are
-short uppercase calls to action (the one place uppercase CTAs are expected).
-
----
-
-## 13. Cards
-
-Cards should feel **editorial, not like database records.** The visual hierarchy makes the content more important than the
-UI container.
-
-**Business card:** Photo, Business Name, Category, Location, Short descriptor, **→ Explore**
-
-**Event card:** Date, Event Name, Location, Short description, **→ Details**
-
-**Hotlist card:** HOTLIST label, Large image, Headline, Why it's worth knowing, **→ See it**
-
-Product rules that apply regardless of style (from `CLAUDE.md`): no star ratings or review counts on cards, no distance and
-no "open now"; location is a community label.
-
----
-
-## 14. Social media style
-
-Social should look unmistakably like Star Valley Local even before someone sees the account name.
-
-**The formula:** large headline, strong photography, one brand accent, a small Star Valley Local mark.
-
-Example, "5 THINGS TO DO THIS WEEKEND": Cream background, Navy headline, Mustard date/accent, photography underneath. This
-creates repeatable recognition.
-
----
-
-## 15. Social content categories
-
-Each category has its own subtle visual accent. This creates organization without turning the feed into a rainbow.
-
-| Category | Accent |
-|---|---|
-| LOCAL | Navy |
-| EVENTS | Valley Blue |
-| HOTLIST | Mustard |
-| COMMUNITY | Sage |
-| STORIES | Terracotta |
-| BUSINESS | Charcoal / Cream |
-
-(Applying the contrast rules in section 04: Sage backgrounds carry Navy or Charcoal only at large sizes, or a Cream/White
-panel carries the small text.)
-
----
-
-## 16. Brand don'ts
-
-- **Don't** use mountains as the logo simply because Star Valley is mountainous.
-- **Don't** make everything brown and western.
-- **Don't** use every palette color in every design.
-- **Don't** put giant logos on every graphic.
-- **Don't** use excessive badges and stickers.
-- **Don't** make every post look identical.
-- **Don't** use generic stock photos of cowboys, barns and mountains.
-- **Don't** make the brand feel like a chamber of commerce.
-- **Don't** make "local" synonymous with amateur.
-
----
-
-## 17. The brand should feel like
-
-- A modern local magazine.
-- A useful digital guide.
-- A trusted community connector.
-- A place people check regularly.
-- A brand businesses want to be associated with.
-
----
-
-## 18. Visual north star
-
-If we have to make a design decision and aren't sure which direction to go, ask:
-
-> **Would this look at home on the cover of a really good modern regional magazine?**
-
-If yes, it's probably on brand. If it looks like a coupon mailer, a tourism brochure, a Facebook community group, a Chamber
-directory, or a Western gift shop: rethink it.
-
----
-
-## Applying this guide to the site
-
-Not done yet, by design: it changes how every public and admin page looks, so it should be reviewed first.
-
-**What would change** (source of truth `src/styles/tokens.ts`; `npm run tokens` regenerates the CSS; `tokens.test.ts` checks
-every pairing the UI uses):
-
-| Today (from the early mockups) | Under this guide |
-|---|---|
-| Page background: warm off-white | Cream `#E8E1D6` for large areas, white for cards and long reading |
-| Primary button: brick `#bc563b`, white text | Navy `#193153`, Cream text |
-| Header / footer: navy-800 | Star Valley Navy `#193153` |
-| Body text: ink / slate | Charcoal `#1F2428` |
-| Links: lake-700 | Valley Blue `#355C73` |
-| Category tiles: nine hues (brick, lake, sunset, lavender, plum, navy, sage, slate, sky) | Fewer, calmer accents: Navy, Valley Blue, Sage, Terracotta, Mustard. The nine-hue set conflicts with "don't use every color equally" |
-| Verified badge: green | Sage family (white text on Original Sage is 5.69:1) |
-| Featured / sponsored marker | Mustard with Charcoal text (6.83:1) |
-
-**Per-tenant theming stays.** `tenants.theme` overrides still go through `buildThemeStyle()` and its contrast guard, so
 Teton Valley Local and the next tenants can bring their own palette; this guide defines Star Valley's.
 
 **Decisions needed before building it:**
 
-1. **Typefaces.** The guide asks for a modern, high-character display sans and a very readable body sans, but names none.
+1. **Typefaces — resolved** (Bricolage Grotesque + Inter, see above). Original note: the guide asks for a modern, high-character display sans and a very readable body sans, but names none.
    Candidates to try on real headlines (all open-licence, self-hostable): *Bricolage Grotesque*, *Familjen Grotesk*,
    *Space Grotesk*, *Outfit*, *DM Sans* for display; *Inter*, *Public Sans* or *Source Sans 3* for body. I would shortlist
    two display faces and look at them on the home page before committing.
-2. **Logo.** I still need the logo as SVG. The guide requires a single-color primary mark (Navy / Cream / Charcoal), which
+2. **Logo.** Raster logos were supplied and cropped into `public/brand/` (mark, lockup, Local Hotlist). I still want SVG artwork, plus a Cream reverse version for navy backgrounds. The guide requires a single-color primary mark (Navy / Cream / Charcoal), which
    makes it easy to recolor once I have vector artwork.
 3. **Hotlist.** "Local Hotlist" is not in `CLAUDE.md` (V1 or V2/V3). The guide gives it a visual identity, a flame mark and
    Mustard signalling. Is it a product feature to plan for (a curated weekly list in the Articles / Things to Do engine),

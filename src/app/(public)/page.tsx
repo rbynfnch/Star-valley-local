@@ -40,7 +40,7 @@ export default async function Home() {
         ]) }} />
       )}
 
-      <section aria-labelledby="hero-heading" className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_45%,var(--lake-700)_100%)] text-text-on-inverse">
+      <section aria-labelledby="hero-heading" className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_45%,var(--valley-blue)_100%)] text-text-on-inverse">
         <div className="mx-auto flex w-full max-w-[var(--container-max)] flex-col gap-6 px-4 py-14 sm:px-8 sm:py-20">
           <h1 id="hero-heading" className="max-w-2xl font-heading text-4xl font-bold leading-tight text-text-on-inverse sm:text-5xl">
             Find Local. Discover More.{region && <> Support {region}.</>}

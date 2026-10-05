@@ -21,7 +21,7 @@ export function StatusForm({ business, status }: { business: string; status: str
       <input type="hidden" name="status" value={c.to} />
       <button type="submit" disabled={pending} className="rounded-button border border-slate-600 px-3 py-1.5 text-sm font-semibold text-text hover:bg-surface-muted disabled:opacity-60">{pending ? "Working…" : c.button}</button>
       <p className="text-xs text-text-muted">{c.hint}</p>
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       {state.saved && <p role="status" className="text-sm font-medium text-green-800">{state.saved}</p>}
     </form>
   );

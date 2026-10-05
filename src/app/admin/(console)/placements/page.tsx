@@ -20,7 +20,7 @@ export default async function PlacementsPage() {
     <>
       <h1 className="font-heading text-2xl font-semibold text-text">Placements</h1>
       <p className="mt-1 text-sm text-text-muted">Who holds each Featured spot, when it ends, and who is waiting. To sell one, open the business and use its Plan and placements card.{!canEdit && " Only admins can change placements."}</p>
-      {ov.error && <p role="alert" className="mt-4 text-sm font-medium text-brand-text">Could not load the placements.</p>}
+      {ov.error && <p role="alert" className="mt-4 text-sm font-medium text-danger-text">Could not load the placements.</p>}
 
       <section aria-labelledby="exp-h" className="mt-6 rounded-card bg-surface-card p-4 shadow-card">
         <h2 id="exp-h" className="font-heading text-lg font-semibold text-text">Ending in the next 30 days</h2>

@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { MenuIcon, MountainMark, SearchIcon } from "@/components/icons";
+import { brandAssets } from "@/lib/tenant/brand";
 
 export const NAV = [
   { href: "/businesses", label: "Businesses" },
@@ -9,10 +11,16 @@ export const NAV = [
   { href: "/articles", label: "Articles" },
 ] as const;
 
-export function Wordmark({ name, inverse = false }: { name: string; inverse?: boolean }) {
+// The logo mark (Star Valley's own artwork where a tenant has it, otherwise the generic mountain) beside the name set in the heading face.
+// On the dark footer the artwork sits on a Cream tile, so the Navy mountain stays visible (the guide's "reverse" logo is a vector we do not have yet).
+export function Wordmark({ name, slug, inverse = false }: { name: string; slug?: string | null; inverse?: boolean }) {
+  const art = brandAssets(slug);
+  const color = inverse ? "text-text-on-inverse" : "text-text";
   return (
-    <span className={`inline-flex items-center gap-2 font-heading text-lg font-bold uppercase tracking-[0.12em] ${inverse ? "text-text-on-inverse" : "text-surface-inverse"}`}>
-      <MountainMark className={inverse ? "text-text-on-inverse" : "text-surface-inverse"} />
+    <span className={`inline-flex items-center gap-2.5 font-heading text-xl font-bold tracking-tight ${color}`}>
+      {art
+        ? <span className={inverse ? "rounded-chip bg-surface-muted p-1" : ""}><Image src={art.mark.src} alt="" width={art.mark.width} height={art.mark.height} priority={!inverse} className="h-8 w-auto" /></span>
+        : <MountainMark className={inverse ? "text-text-on-inverse" : "text-surface-inverse"} />}
       {name}
     </span>
   );
@@ -21,11 +29,11 @@ export function Wordmark({ name, inverse = false }: { name: string; inverse?: bo
 const linkClass = "rounded-chip px-2 py-1 font-medium text-text-body hover:text-text hover:underline underline-offset-4";
 const ctaClass = "rounded-button bg-brand px-4 py-2 text-sm font-semibold text-brand-contrast hover:bg-brand-hover";
 
-export function Header({ tenantName }: { tenantName: string }) {
+export function Header({ tenantName, tenantSlug }: { tenantName: string; tenantSlug?: string | null }) {
   return (
     <header className="border-b border-border bg-surface-page">
       <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center justify-between gap-4 px-4 py-3 sm:px-8">
-        <Link href="/" aria-label={`${tenantName} home`}><Wordmark name={tenantName} /></Link>
+        <Link href="/" aria-label={`${tenantName} home`}><Wordmark name={tenantName} slug={tenantSlug} /></Link>
 
         <nav aria-label="Main" className="hidden items-center gap-4 lg:flex">
           {NAV.map((n) => <Link key={n.href} href={n.href} className={linkClass}>{n.label}</Link>)}

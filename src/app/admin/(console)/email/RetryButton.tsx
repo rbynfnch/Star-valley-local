@@ -12,7 +12,7 @@ export function RetryButton({ id }: { id: string }) {
         onClick={() => start(async () => { const fd = new FormData(); fd.set("id", id); try { setState(await retryEmail(fd)); } catch { setState({ error: "That could not be retried. Reload the page and try again." }); } })}>
         {pending ? "Retrying…" : "Retry"}
       </button>
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       {state.message && <p role="status" className="text-sm font-medium text-green-800">{state.message}</p>}
     </div>
   );

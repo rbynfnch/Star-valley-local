@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// Provisional faces (serif headlines, humanist sans body), identified by eye from the mockups. Confirm.
-const sans = Inter({ variable: "--font-sans-face", subsets: ["latin"], display: "swap" });
-const heading = Source_Serif_4({ variable: "--font-heading-face", subsets: ["latin"], display: "swap" });
+// Bricolage Grotesque (headlines, feature titles, section headings, Hotlist, prominent numbers) and Inter (everything else).
+// Variable fonts, Latin subset, self-hosted from src/app/fonts (SIL Open Font License, texts alongside): no request to a third party.
+const sans = localFont({ src: "./fonts/Inter-latin-variable.woff2", variable: "--font-sans-face", weight: "100 900", display: "swap" });
+const heading = localFont({ src: "./fonts/BricolageGrotesque-latin-variable.woff2", variable: "--font-heading-face", weight: "200 800", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Star Valley Local", template: "%s | Star Valley Local" },

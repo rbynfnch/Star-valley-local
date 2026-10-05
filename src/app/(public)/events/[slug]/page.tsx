@@ -56,7 +56,7 @@ export default async function EventPage(props: PageProps<"/events/[slug]">) {
   return (
     <main id="main">
       {jsonLd.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(jsonLd) }} />}
-      <header className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_55%,var(--lake-700)_100%)] text-text-on-inverse">
+      <header className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_55%,var(--valley-blue)_100%)] text-text-on-inverse">
         <div className="mx-auto w-full max-w-[var(--container-max)] space-y-4 px-4 py-8 sm:px-8">
           <Breadcrumbs crumbs={crumbs} />
           <h1 className="font-heading text-4xl font-bold text-text-on-inverse [overflow-wrap:anywhere]">{ev.title}</h1>

@@ -22,7 +22,7 @@ export function ConfirmForm({ claim, token, businessName }: { claim: string; tok
       <input type="hidden" name="c" value={claim} />
       <input type="hidden" name="t" value={token} />
       <p className="text-text-body">Confirm that you manage <strong className="[overflow-wrap:anywhere]">{businessName}</strong>. This links the listing to your account.</p>
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       {state.done && !state.ok
         ? <p><Link href="/businesses" className="font-semibold text-link underline">Find your business</Link></p>
         : <button type="submit" disabled={pending} className="rounded-button bg-brand px-5 py-2 font-semibold text-brand-contrast hover:bg-brand-hover disabled:opacity-60">{pending ? "Confirming…" : "Yes, I manage this business"}</button>}

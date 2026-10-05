@@ -33,7 +33,7 @@ export default async function EmailQueue() {
                   <p className="font-medium text-text [overflow-wrap:anywhere]">{label(r.kind)}{r.business_name ? ` · ${r.business_name}` : ""}</p>
                   <p className="text-sm text-text-muted [overflow-wrap:anywhere]">To {r.recipient_email}</p>
                 </div>
-                <span className={`rounded-button px-2 py-0.5 text-xs font-semibold ${r.status === "failed" ? "bg-brand-text text-white" : "bg-surface-muted text-text"}`}>{STATUS[r.status] ?? r.status}</span>
+                <span className={`rounded-button px-2 py-0.5 text-xs font-semibold ${r.status === "failed" ? "bg-danger text-danger-contrast" : "bg-surface-muted text-text"}`}>{STATUS[r.status] ?? r.status}</span>
               </div>
               <p className="mt-1 text-xs text-text-muted">
                 {r.status === "sent" ? `Sent ${formatStamp(r.sent_at, tz)}` : r.status === "queued" ? `Due ${formatStamp(r.send_after, tz)}` : `Queued ${formatStamp(r.created_at, tz)}`}

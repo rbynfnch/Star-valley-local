@@ -52,7 +52,7 @@ export default async function BusinessesPage({ searchParams }: PageProps<"/admin
         </div>
       </form>
 
-      {list.error && <p role="alert" className="mt-4 text-sm font-medium text-brand-text">Could not load businesses.</p>}
+      {list.error && <p role="alert" className="mt-4 text-sm font-medium text-danger-text">Could not load businesses.</p>}
       <p className="mt-4 text-sm text-text-muted" aria-live="polite">{result.total} {result.total === 1 ? "business" : "businesses"}{filtered ? " match" : ""}</p>
 
       {result.rows.length === 0 && !list.error ? (

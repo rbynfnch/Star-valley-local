@@ -1,9 +1,9 @@
 // The dark page header used by the listing pages.
 export function PageHero({ id, eyebrow, title, intro, children }: { id: string; eyebrow?: string; title: string; intro?: string; children?: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="bg-[linear-gradient(115deg,var(--navy-900)_0%,var(--navy-800)_55%,var(--lake-700)_100%)] text-text-on-inverse">
+    <section aria-labelledby={id} className="bg-[linear-gradient(115deg,var(--navy)_0%,var(--navy)_55%,var(--valley-blue)_100%)] text-text-on-inverse">
       <div className="mx-auto w-full max-w-[var(--container-max)] space-y-4 px-4 py-10 sm:px-8">
-        {eyebrow && <p className="text-sm font-bold uppercase tracking-wide text-text-on-inverse">{eyebrow}</p>}
+        {eyebrow && <p className="text-sm font-bold text-text-on-inverse">{eyebrow}</p>}
         <h1 id={id} className="font-heading text-4xl font-bold text-text-on-inverse">{title}</h1>
         {intro && <p className="max-w-2xl text-lg text-text-on-inverse">{intro}</p>}
         {children}

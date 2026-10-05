@@ -15,7 +15,7 @@ export function WaitlistButton({ business, slot, scope, label }: { business: str
       })} className="rounded-button border border-slate-600 px-4 py-2 text-sm font-semibold text-text hover:bg-surface-muted disabled:opacity-60" aria-label={`Join the waitlist: ${label}`}>
         {pending ? "Joining…" : "Join the waitlist"}
       </button>
-      {state.error && <p role="alert" className="mt-2 text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="mt-2 text-sm font-medium text-danger-text">{state.error}</p>}
     </div>
   );
 }

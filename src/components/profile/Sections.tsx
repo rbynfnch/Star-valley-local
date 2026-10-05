@@ -118,7 +118,7 @@ export function DealsCard({ deals }: { deals: ProfileView["deals"] }) {
         {deals.map((d) => (
           <li key={d.id} className="rounded-chip border border-border p-4">
             <div className="flex flex-wrap items-center gap-2">
-              {d.badge && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold uppercase text-on-light-accent">{d.badge}</span>}
+              {d.badge && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">{d.badge}</span>}
               <h3 className="font-heading text-lg font-bold">{d.title}</h3>
             </div>
             {d.description && <p className="mt-1 text-text-body">{d.description}</p>}

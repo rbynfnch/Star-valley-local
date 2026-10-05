@@ -52,7 +52,7 @@ export function ImportWizard() {
     setDone(r);
   });
 
-  const errorEl = error ? <p role="alert" className="mt-3 text-sm font-medium text-brand-text">{error}</p> : null;
+  const errorEl = error ? <p role="alert" className="mt-3 text-sm font-medium text-danger-text">{error}</p> : null;
 
   if (done) {
     const s = done.summary;

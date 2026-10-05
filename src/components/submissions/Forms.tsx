@@ -20,7 +20,7 @@ function Shell({ action, siteKey, children, thanks, submitLabel }: { action: Act
       className="space-y-4 rounded-card bg-surface-card p-5 shadow-card" noValidate>
       {children}
       <Turnstile siteKey={siteKey} />
-      {state.error && <p role="alert" className="text-sm font-medium text-brand-text">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm font-medium text-danger-text">{state.error}</p>}
       <button type="submit" disabled={pending} className="rounded-button bg-brand px-5 py-2 font-semibold text-brand-contrast hover:bg-brand-hover disabled:opacity-60">{pending ? "Sending…" : submitLabel}</button>
       <p className="text-xs text-text-muted">We review every submission before anything is published or changed.</p>
     </form>

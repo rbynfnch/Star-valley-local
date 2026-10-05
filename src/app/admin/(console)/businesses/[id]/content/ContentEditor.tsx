@@ -24,7 +24,7 @@ const label = "text-sm font-medium text-text";
 
 const Msg = ({ s }: { s: ContentState }) => (
   <>
-    {s.error && <p role="alert" className="text-sm font-medium text-brand-text">{s.error}</p>}
+    {s.error && <p role="alert" className="text-sm font-medium text-danger-text">{s.error}</p>}
     {s.message && <p role="status" className="text-sm font-medium text-green-800">{s.message}</p>}
   </>
 );
@@ -241,7 +241,7 @@ function DealCard({ business, deal, tz }: { business: string; deal: Deal; tz: st
         {!confirm ? <button type="button" onClick={() => setConfirm(true)} className={ghost}>Delete deal…</button> : (
           <>
             <span className="text-sm text-text">Delete this deal for good? Its view history stays, but the deal is gone.</span>
-            <button type="button" disabled={del.pending} className={`${btn} bg-brand-text text-white`} onClick={() => { const fd = new FormData(); fd.set("business", business); fd.set("deal", deal.id); del.run(fd); }}>Yes, delete</button>
+            <button type="button" disabled={del.pending} className={`${btn} bg-danger text-danger-contrast`} onClick={() => { const fd = new FormData(); fd.set("business", business); fd.set("deal", deal.id); del.run(fd); }}>Yes, delete</button>
             <button type="button" onClick={() => setConfirm(false)} className={ghost}>Keep</button>
           </>
         )}
@@ -309,7 +309,7 @@ function PhotoCard({ business, photo, mediaBase, index, galleryIds }: { business
             {!confirm ? <button type="button" onClick={() => setConfirm(true)} className={ghost}>Delete…</button> : (
               <>
                 <span className="text-sm text-text">Delete this photo and its file?</span>
-                <button type="button" disabled={del.pending} className={`${btn} bg-brand-text text-white`} onClick={() => { const fd = new FormData(); fd.set("business", business); fd.set("photo", photo.id); del.run(fd); }}>Yes, delete</button>
+                <button type="button" disabled={del.pending} className={`${btn} bg-danger text-danger-contrast`} onClick={() => { const fd = new FormData(); fd.set("business", business); fd.set("photo", photo.id); del.run(fd); }}>Yes, delete</button>
                 <button type="button" onClick={() => setConfirm(false)} className={ghost}>Keep</button>
               </>
             )}

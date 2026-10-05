@@ -58,7 +58,7 @@ export default async function Articles(props: PageProps<"/articles">) {
             <article className="grid overflow-hidden rounded-card bg-surface-card shadow-card md:grid-cols-2">
               <div className="relative aspect-[16/9] bg-surface-muted md:aspect-auto md:min-h-64">{hero.image && <Image src={hero.image.url} alt={hero.image.alt} fill sizes="(min-width: 768px) 50vw, 100vw" priority className="object-cover" />}</div>
               <div className="flex flex-col gap-3 p-6">
-                <p className="text-sm text-text-muted">{hero.categoryName && <span className="font-semibold uppercase tracking-wide">{hero.categoryName} · </span>}<time dateTime={hero.date}>{hero.dateText}</time></p>
+                <p className="text-sm text-text-muted">{hero.categoryName && <span className="font-semibold">{hero.categoryName} · </span>}<time dateTime={hero.date}>{hero.dateText}</time></p>
                 <h3 className="font-heading text-3xl font-bold leading-tight [overflow-wrap:anywhere]"><Link href={`/articles/${hero.slug}`} className="text-text hover:underline underline-offset-4">{hero.title}</Link></h3>
                 {hero.excerpt && <p className="text-lg text-text-body [overflow-wrap:anywhere]">{hero.excerpt}</p>}
                 <p className="mt-auto text-sm text-text-muted">{[hero.authorName && `By ${hero.authorName}`, hero.readText].filter(Boolean).join(" · ")}</p>
