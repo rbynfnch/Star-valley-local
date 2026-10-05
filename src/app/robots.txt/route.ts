@@ -12,5 +12,5 @@ export async function GET(request: Request) {
   const tenant = await resolveTenantFor(getDirectoryData(), hostHeader, { isProduction, defaultSlug: process.env.DEFAULT_TENANT_SLUG });
   const origin = originFromRequest(normalizeHost(hostHeader) ? hostHeader : null, request.headers.get("x-forwarded-proto"), isProduction);
   if (!tenant || !origin) return new Response("Not found", { status: 404 });
-  return new Response(buildRobotsTxt(origin), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  return new Response(buildRobotsTxt(origin, process.env.SVL_NOINDEX === "1"), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
 }

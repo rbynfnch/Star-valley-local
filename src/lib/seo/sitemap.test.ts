@@ -44,3 +44,9 @@ test('events and articles are listed by slug, after the hubs', () => {
   const p = sitemapPaths(categories, communities, counts, [], { eventSlugs: ['fair'], articleSlugs: ['ten-things'] });
   assert.ok(p.includes('/events/fair') && p.includes('/articles/ten-things') && p.indexOf('/events/fair') > p.indexOf('/categories/plumbing'));
 });
+
+test("a test site's robots.txt shuts crawlers out", async () => {
+  const { buildRobotsTxt } = await import("./sitemap.ts");
+  assert.equal(buildRobotsTxt("https://x.test", true), "User-agent: *\nDisallow: /\n");
+  assert.match(buildRobotsTxt("https://x.test"), /Allow: \/\n[\s\S]*Sitemap: https:\/\/x\.test\/sitemap\.xml/);
+});

@@ -18,7 +18,7 @@ const canonical = (b) => /<link rel="canonical" href="([^"]*)"/.exec(b)?.[1] ?? 
 const h1 = (b) => textOf(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(b)?.[1] ?? '');
 const ld = (b) => [...b.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => { try { return [].concat(JSON.parse(m[1])); } catch { return [null]; } });
 const has = (b, id) => new RegExp(`<section[^>]*id="${id}"`).test(b);
-const imgs = (b) => [...b.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+const imgs = (b) => [...(/<main\b[\s\S]*<\/main>/.exec(b)?.[0] ?? b).matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);   // the page's own images, not the header and footer logo
 const rules = (b, label) => {
   const t = textOf(b);
   check(!/\breviews?\b/i.test(t.replace(/see reviews on google/i, '')) && !/\bratings?\b|★|\b\d(\.\d)?\s*(\/\s*5|stars?)\b/i.test(t), `${label}: no reviews or ratings (a link OUT to Google reviews is the only mention allowed)`);

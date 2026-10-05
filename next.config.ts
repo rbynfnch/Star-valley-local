@@ -39,7 +39,12 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
   // The Hotlist replaced the Deals page.
   async redirects() { return [{ source: "/deals", destination: "/hotlist", permanent: true }]; },
-  async headers() { return process.env.NODE_ENV === "production" ? [{ source: "/:path*", headers: securityHeaders }] : []; },
+  async headers() {
+    // SVL_NOINDEX=1 marks a test site: no search engine should list it (also see robots.txt).
+    const noindex = process.env.SVL_NOINDEX === "1" ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : [];
+    const all = [...(process.env.NODE_ENV === "production" ? securityHeaders : []), ...noindex];
+    return all.length ? [{ source: "/:path*", headers: all }] : [];
+  },
 };
 
 export default nextConfig;

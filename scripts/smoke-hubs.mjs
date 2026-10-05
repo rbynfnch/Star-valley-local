@@ -105,7 +105,7 @@ const locs = [...r.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 const origin = `http://${host}:${port}`;
 check(locs.length >= 10 && locs.every((l) => l.startsWith(origin + '/')), `${locs.length} absolute URLs on this tenant's origin`);
 check(locs.includes(origin + '/categories/home-property/afton') && locs.includes(origin + '/communities/afton') && locs.includes(origin + '/categories/home-property'), 'it lists the hubs with enough listings');
-check(!locs.some((l) => /marketing|dentists\/etna|plumbing|\?/.test(l)), 'and none of the empty, thin (1 listing) or filtered ones');
+check(!locs.some((l) => /marketing|dentists\/etna|(categories|communities)\/[^\s]*plumbing|\?/.test(l)), 'and none of the empty, thin (1 listing) or filtered ones');
 let bad = [];
 for (const l of locs) { const rr = await get(l.slice(origin.length)); if (rr.status !== 200 || /noindex/.test(robots(rr.body) ?? '')) bad.push(`${l} -> ${rr.status}`); }
 check(bad.length === 0, `CRAWL: every one of the ${locs.length} sitemap URLs returns 200 and is indexable${bad.length ? ' (bad: ' + bad.slice(0, 3).join(', ') + ')' : ''}`);
