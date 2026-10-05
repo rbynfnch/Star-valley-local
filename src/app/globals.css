@@ -29,3 +29,15 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Article and event body text rendered from Markdown (src/lib/content/markdown.ts produces only these tags). */
+.article-body { color: var(--text-body); font-size: 1.125rem; line-height: 1.75; overflow-wrap: anywhere; }
+.article-body > * + * { margin-top: 1.1em; }
+.article-body h2, .article-body h3, .article-body h4 { color: var(--text); font-family: var(--font-heading); font-weight: 700; line-height: 1.25; margin-top: 1.8em; }
+.article-body h2 { font-size: 1.6rem; } .article-body h3 { font-size: 1.3rem; } .article-body h4 { font-size: 1.1rem; }
+.article-body ul, .article-body ol { padding-left: 1.4em; } .article-body ul { list-style: disc; } .article-body ol { list-style: decimal; }
+.article-body li + li { margin-top: 0.35em; }
+.article-body a { color: var(--link, currentColor); text-decoration: underline; text-underline-offset: 3px; }
+.article-body blockquote { border-left: 4px solid var(--border); padding-left: 1em; font-style: italic; }
+.article-body code { background: var(--surface-muted); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.9em; }
+.article-body hr { border: 0; border-top: 1px solid var(--border); }

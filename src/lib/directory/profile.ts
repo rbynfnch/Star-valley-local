@@ -2,7 +2,7 @@
 // Pure and tested. The database already hides Enhanced-only content from Free listings; this builder ENFORCES THE SAME
 // RULES AGAIN, so a leak in one layer is not a leak on the page. Rules from CLAUDE.md: no reviews or ratings (we
 // store none), no distance, no "open now", the verification re-check date only once verified.
-import { directionsHref, safeExternalUrl, telHref, websiteLabel } from "../format.ts";
+import { directionsHref, safeExternalUrl, telHref, validThroughDay, websiteLabel } from "../format.ts";
 import { mediaUrl } from "../media.ts";
 import { groupHours, openingHoursSpecification, type HoursView } from "./hours.ts";
 import { plural } from "./hub.ts";
@@ -106,7 +106,7 @@ export function buildProfileView(raw: ProfileRaw, ctx: ProfileContext): ProfileV
     services: enhanced ? raw.services.map((s) => s.name) : [], social, googleReviewsHref, faqs,
     deals: enhanced ? raw.deals.map((d) => ({
       id: d.id, title: d.title, description: d.description, terms: d.terms, badge: dealBadge(d.discount_type, d.discount_value),
-      validText: d.ends_at ? `Valid through ${fmt(d.ends_at, ctx.timezone, { month: "short", day: "numeric", year: "numeric" })}` : "Ongoing",
+      validText: d.ends_at ? `Valid through ${validThroughDay(d.ends_at, ctx.timezone)}` : "Ongoing",
     })) : [],
     logo: logo && { url: logo.url, alt: logo.alt, width: logo.width, height: logo.height },
     photos: shown.map(({ url, alt, width, height }) => ({ url, alt, width, height })),

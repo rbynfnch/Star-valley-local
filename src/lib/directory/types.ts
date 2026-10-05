@@ -5,7 +5,18 @@ export type EventRow = {
   id: string; slug: string; title: string; starts_at: string; ends_at: string | null; all_day: boolean;
   community_id: string | null; category_id: string | null; venue_name: string | null;
   rrule: string | null; recurrence_until: string | null; exdates: string[];
+  // only on rows read with the full column list (event pages); the listing pages do not need them
+  description?: string | null; address?: string | null; url?: string | null; organizer_business_id?: string | null; image_media_id?: string | null;
 };
+export type EventCategory = { id: string; slug: string; name: string; sort_order: number };
+export type DealRow = { id: string; business_id: string; title: string; description: string | null; terms: string | null; discount_type: "percent" | "amount" | "bogo" | "other"; discount_value: number | string | null; starts_at: string; ends_at: string | null };
+export type ArticleListRow = { id: string; slug: string; title: string; excerpt: string | null; category_id: string | null; author_id: string | null; cover_media_id: string | null; read_minutes: number | null; featured_rank: number | null; publish_at: string };
+export type ArticleFull = ArticleListRow & { body_md: string; spotlight_business_id: string | null; seo_title: string | null; seo_description: string | null };
+export type ArticleItem = { position: number; title: string; body: string | null; business_id: string | null; event_id: string | null };
+export type ArticleCategory = { id: string; slug: string; name: string; color_token: string | null; sort_order: number };
+export type Author = { id: string; name: string; bio: string | null };
+export type MediaRow = { id: string; storage_bucket: string; storage_path: string; alt_text: string | null; width: number | null; height: number | null };
+export type ArticleQuery = { q: string; categoryId: string | null; featured: boolean; limit: number; offset: number };
 export type VerificationLevel = "none" | "green" | "gold";
 export type BusinessRow = {
   id: string; slug: string; name: string; short_description: string | null;
@@ -83,4 +94,20 @@ export interface DirectoryData {
   counts(tenantId: string): Promise<CountRow[]>;
   /** Business ids with a LIVE placement in `slot` whose scope is one of `scopeIds` (category or community ids). */
   livePlacements(tenantId: string, slot: "category" | "community", scopeIds: string[]): Promise<string[]>;
+  /** One published event by slug (null: unknown, unpublished or another tenant's), with every public column. */
+  eventBySlug(tenantId: string, slug: string): Promise<EventRow | null>;
+  eventCategories(tenantId: string): Promise<EventCategory[]>;
+  /** Deals that are live right now (the database already applied: published, in date, business public and Enhanced). */
+  liveDeals(tenantId: string): Promise<DealRow[]>;
+  articleCategories(tenantId: string): Promise<ArticleCategory[]>;
+  /** public.list_articles(): search, category, featured-only and paging happen in the database. */
+  listArticles(tenantId: string, q: ArticleQuery): Promise<{ rows: ArticleListRow[]; total: number }>;
+  articleCategoryCounts(tenantId: string): Promise<{ category_id: string | null; n: number }[]>;
+  articleBySlug(tenantId: string, slug: string): Promise<{ article: ArticleFull; items: ArticleItem[] } | null>;
+  articleSlugs(tenantId: string): Promise<{ slug: string; publish_at: string }[]>;
+  authors(tenantId: string, ids: string[]): Promise<Author[]>;
+  mediaAssets(tenantId: string, ids: string[]): Promise<MediaRow[]>;
+  businessesByIds(tenantId: string, ids: string[]): Promise<BusinessRow[]>;
+  /** Businesses with a live Things to Do placement. */
+  thingsToDoFeatured(tenantId: string): Promise<BusinessRow[]>;
 }

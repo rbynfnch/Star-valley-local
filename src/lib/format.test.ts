@@ -33,3 +33,11 @@ test('only http(s) URLs become links', () => {
   }
 });
 test('website label', () => assert.equal(websiteLabel('https://www.sample.example/x'), 'sample.example'));
+
+import { validThroughDay } from "./format.ts";
+test("validThroughDay: local midnight means the day before; other times show their own day", () => {
+  assert.equal(validThroughDay("2026-10-09T06:00:00Z", "America/Denver"), "Oct 8, 2026");        // stored by the editor as the next day's start
+  assert.equal(validThroughDay("2026-10-09T20:30:00Z", "America/Denver"), "Oct 9, 2026");
+  assert.equal(validThroughDay("2026-11-02T07:00:00Z", "America/Denver"), "Nov 1, 2026");        // across the DST change
+  assert.equal(validThroughDay("2027-01-01T07:00:00Z", "America/Denver"), "Dec 31, 2026");
+});

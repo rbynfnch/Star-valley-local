@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { psqlJson } from "./psql.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { BusinessRow, Category, Community, CountRow, DirectoryData, EventRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { ArticleCategory, ArticleFull, ArticleItem, ArticleListRow, ArticleQuery, Author, BusinessRow, Category, Community, CountRow, DealRow, DirectoryData, EventCategory, EventRow, MediaRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
+function withoutTotal<T extends { total_count: unknown }>(r: T): Omit<T, "total_count"> { const c = { ...r } as Partial<T>; Reflect.deleteProperty(c, "total_count"); return c as Omit<T, "total_count">; }
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
 // (`npm run fixtures`), so it shows exactly what the public could read. Never used in production (data.ts refuses).
 type Snapshot = {
@@ -13,12 +14,16 @@ type Snapshot = {
   community_events: (EventRow & { tenant_id: string; status: string })[];
   public_placements: { tenant_id: string; business_id: string; slot_type: string; category_id: string | null; community_id: string | null }[];
   businesses: (BusinessRow & { tenant_id: string; status: string })[];
+  event_categories: (EventCategory & { tenant_id: string })[]; deals: (DealRow & { tenant_id: string })[];
+  articles: (ArticleFull & { tenant_id: string; status: string; audience: string })[]; article_items: (ArticleItem & { tenant_id: string; article_id: string })[];
+  article_categories: (ArticleCategory & { tenant_id: string; is_active: boolean })[]; authors: (Author & { tenant_id: string })[];
+  media_assets: (MediaRow & { tenant_id: string; is_public: boolean })[];
 };
 
 export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "directory.json")): DirectoryData {
   if (!existsSync(path)) throw new Error(`No fixtures at ${path}. Seed a local database and run: npm run fixtures`);
   const s = JSON.parse(readFileSync(path, "utf8")) as Snapshot;
-  const missing = ["tenants", "tenant_domains", "regions", "categories", "communities", "community_events", "public_placements", "businesses"].filter((k) => !Array.isArray((s as Record<string, unknown>)[k]));
+  const missing = ["tenants", "tenant_domains", "regions", "categories", "communities", "community_events", "public_placements", "businesses", "event_categories", "deals", "articles", "article_items", "article_categories", "authors", "media_assets"].filter((k) => !Array.isArray((s as Record<string, unknown>)[k]));
   if (missing.length) throw new Error(`Fixtures are stale (missing: ${missing.join(", ")}). Re-run: npm run fixtures`);
   const active = (t: Snapshot["tenants"][number] | undefined) => (t && t.is_active ? (t as Tenant) : null);
   return {
@@ -52,6 +57,34 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
     },
     async businessProfile(id, slug): Promise<ProfileRaw | null> {
       return psqlJson<ProfileRaw | null>("select public.business_profile(:'tenant'::uuid, :'slug')::text::jsonb", { tenant: id, slug });
+    },
+    async eventBySlug(id, slug) { return s.community_events.find((e) => e.tenant_id === id && e.slug === slug && e.status === "published") ?? null; },
+    async eventCategories(id) { return s.event_categories.filter((c) => c.tenant_id === id).sort((a, b) => a.sort_order - b.sort_order); },
+    async liveDeals(id) { return s.deals.filter((d) => d.tenant_id === id).sort((a, b) => (a.ends_at ?? "9999").localeCompare(b.ends_at ?? "9999")); },
+    async articleCategories(id) { return s.article_categories.filter((c) => c.tenant_id === id && c.is_active).sort((a, b) => a.sort_order - b.sort_order); },
+    // Runs the REAL public.list_articles() as the anonymous role, like search above.
+    async listArticles(id, q: ArticleQuery) {
+      const rows = psqlJson<(ArticleListRow & { total_count: number | string })[]>(
+        "select coalesce(jsonb_agg(t), '[]'::jsonb) from public.list_articles(:'tenant'::uuid, nullif(:'q', ''), nullif(:'cat', '')::uuid, :'feat'::boolean, :'lim'::int, :'off'::int) t",
+        { tenant: id, q: q.q, cat: q.categoryId ?? "", feat: String(q.featured), lim: String(q.limit), off: String(q.offset) });
+      return { rows: rows.map((r) => withoutTotal(r)), total: rows.length ? Number(rows[0].total_count) : 0 };
+    },
+    async articleCategoryCounts(id) {
+      const rows = psqlJson<{ category_id: string | null; n: number | string }[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.article_category_counts(:'tenant'::uuid) t", { tenant: id });
+      return rows.map((x) => ({ category_id: x.category_id, n: Number(x.n) }));
+    },
+    async articleBySlug(id, slug) {
+      const a = s.articles.find((x) => x.tenant_id === id && x.slug === slug && x.audience === "public" && ["published", "scheduled"].includes(x.status) && new Date(x.publish_at).getTime() <= Date.now());
+      if (!a) return null;
+      return { article: a, items: s.article_items.filter((i) => i.article_id === a.id).sort((x, y) => x.position - y.position) };
+    },
+    async articleSlugs(id) { return s.articles.filter((x) => x.tenant_id === id && x.audience === "public" && new Date(x.publish_at).getTime() <= Date.now()).map((x) => ({ slug: x.slug, publish_at: x.publish_at })); },
+    async authors(id, ids) { return s.authors.filter((a) => a.tenant_id === id && ids.includes(a.id)); },
+    async mediaAssets(id, ids) { return s.media_assets.filter((m) => m.tenant_id === id && m.is_public && ids.includes(m.id)); },
+    async businessesByIds(id, ids) { return s.businesses.filter((b) => b.tenant_id === id && ids.includes(b.id)); },
+    async thingsToDoFeatured(id) {
+      const ids = new Set(s.public_placements.filter((p) => p.tenant_id === id && p.slot_type === "things_to_do").map((p) => p.business_id));
+      return s.businesses.filter((b) => b.tenant_id === id && ids.has(b.id));
     },
     async businessSlugs(id) { return s.businesses.filter((b) => b.tenant_id === id).map((b) => b.slug).sort(); },
     async products(id): Promise<Product[]> {

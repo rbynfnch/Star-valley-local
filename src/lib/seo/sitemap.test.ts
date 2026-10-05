@@ -12,7 +12,7 @@ const counts: CountRow[] = [{ category_id: 'p', community_id: null, n: 2 }, { ca
 
 test('lists the home page, the directory and only hubs with at least 2 listings', () => {
   const p = sitemapPaths(categories, communities, counts);
-  assert.deepEqual(p, ['/', '/businesses', '/pricing', '/communities/afton', '/categories/plumbing']);
+  assert.deepEqual(p, ['/', '/businesses', '/pricing', '/events', '/deals', '/articles', '/things-to-do', '/communities/afton', '/categories/plumbing']);
   assert.ok(!p.some((x) => x.includes('empty')), 'no empty pages in the sitemap');
 });
 test('a hub with exactly ONE listing is not listed (thin pages: one valley-wide business must not spawn ten near-identical pages)', () => {
@@ -39,4 +39,8 @@ test('robots.txt allows everything, points at THIS tenant\'s sitemap, and does n
   const r = buildRobotsTxt('https://tetonvalleylocal.example');
   assert.match(r, /Sitemap: https:\/\/tetonvalleylocal\.example\/sitemap\.xml/);
   assert.ok(!/Disallow/i.test(r));
+});
+test('events and articles are listed by slug, after the hubs', () => {
+  const p = sitemapPaths(categories, communities, counts, [], { eventSlugs: ['fair'], articleSlugs: ['ten-things'] });
+  assert.ok(p.includes('/events/fair') && p.includes('/articles/ten-things') && p.indexOf('/events/fair') > p.indexOf('/categories/plumbing'));
 });

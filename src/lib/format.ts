@@ -40,3 +40,15 @@ export function safeExternalUrl(url: string | null | undefined): string | null {
 export function websiteLabel(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
 }
+
+/**
+ * The last day a deal is valid, as a date in the tenant's timezone. An end that falls exactly at local midnight is how the content
+ * editor stores "through that day" (the next day's start), so it shows as the day before; any other end shows its own day.
+ */
+export function validThroughDay(iso: string, tz: string): string {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(d);
+  const at = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 1);
+  const midnight = at("hour") === 0 && at("minute") === 0 && at("second") === 0;
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" }).format(midnight ? new Date(d.getTime() - 3600_000) : d);
+}
