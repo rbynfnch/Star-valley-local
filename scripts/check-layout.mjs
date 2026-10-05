@@ -47,6 +47,7 @@ const PUBLIC_PAGES = [
   { path: '/hotlist?view=deals', visible: [{ sel: 'h1', min: 0 }, { sel: 'main li', min: 0 }] },
   { path: '/hotlist/half-day-guided-fly-fishing', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }, { sel: 'aside[aria-label="Get this offer"]', min: 0 }] },
   { path: '/hotlist/submit', visible: [{ sel: 'h1', min: 0 }] },
+  { path: '/verify/postcard?c=ABCDEFGHJK', visible: [{ sel: 'h1', min: 0 }, { sel: 'main a', min: 0 }] },
   { path: '/articles', visible: [{ sel: 'h1', min: 0 }, { sel: '#ar-q', min: 0 }, { sel: 'nav[aria-label="Article categories"]', min: 0 }, { sel: 'main article', min: 0 }] },
   { path: '/articles/ten-things-to-do-this-weekend', visible: [{ sel: 'h1', min: 0 }, { sel: 'nav[aria-label="Breadcrumb"]', min: 0 }, { sel: '.article-body', min: 0 }, { sel: 'ol li', min: 0 }] },
   { path: '/things-to-do', visible: [{ sel: 'h1', min: 0 }, { sel: '#weekend-events', min: 0 }, { sel: '#weekend-guides', min: 0 }] },

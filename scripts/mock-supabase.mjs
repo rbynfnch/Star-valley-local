@@ -41,6 +41,7 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  postcards: null,    // postcard batches (see freshPostcards)
   hotlist: null,      // Local Hotlist admin + claims (see freshHotlist)
   editorial: null,    // articles/events/deals tables for the content admin (see freshEditorial)
   tracking: [],       // record_tracking arguments received
@@ -313,6 +314,26 @@ export function startMock() {
         return json(200, { ErrorCode: 0, Message: 'OK', MessageID: 'pm-' + state.email.postmark.length, To: b.To });
       }
 
+      // ---- postcards
+      if (state.postcards && /^(postcard_batch_create|postcard_void|admin_postcard_overview|postcard_redeem)$/.test(rpc ?? '')) {
+        const P = state.postcards; P.calls.push({ rpc, ...args, _who: u?.id ?? 'service' });
+        if (rpc === 'postcard_redeem') {
+          if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+          if (P.redeemError) return json(P.redeemError.status, P.redeemError.body);
+          const c = P.codes.find((x) => x.code === args.p_code);
+          if (!c || c.owner !== args.p_user) return json(200, { result: 'invalid' });
+          if (c.status === 'redeemed') return json(200, { result: 'already', slug: 'sample-smile-dental' });
+          c.status = 'redeemed'; return json(200, { result: 'verified', level: 'gold', slug: 'sample-smile-dental', name: 'Sample Smile Dental' });
+        }
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        if (rpc === 'admin_postcard_overview') return json(200, { eligible: P.eligible, batches: P.batches });
+        if (rpc === 'postcard_void') { for (const b of P.batches) for (const c of b.cards) if (c.id === args.p_code) c.status = 'void'; return json(200, null); }
+        if (rpc === 'postcard_batch_create') {
+          if (P.createError) return json(P.createError.status, P.createError.body);
+          const cards = args.p_businesses.map((id, i) => { const e = P.eligible.find((x) => x.id === id); return { business_id: id, name: e?.name ?? 'X', address_line1: '1 Main St', address_line2: null, city: e?.city ?? 'Afton', state: 'WY', postal_code: '83110', code: P.nextCodes[i] ?? 'ABCDEFGHJK' }; });
+          P.created.push({ label: args.p_label, ids: args.p_businesses }); return json(200, { batch_id: 'batch1', label: args.p_label, cards });
+        }
+      }
       // ---- Local Hotlist: tables read by the signed-in editor through PostgREST, writes through RPCs; claims through the service key
       if (state.hotlist && (req.method === 'GET' || req.method === 'HEAD') && /^\/rest\/v1\/(hotlist_items|hotlist_claims|hotlist_features|businesses|media_assets)\b/.test(req.url) && u?.role) {
         const t = /^\/rest\/v1\/([a-z_]+)/.exec(req.url)[1], q = new URL(req.url, 'http://x').searchParams, H = state.hotlist;
@@ -491,5 +512,15 @@ export function freshHotlist(T = 'a0000000-0000-4000-8000-000000000001') {
     claims: [{ id: 'c0', item_id: 'f0000000-0000-4000-8000-000000000001', user_id: 'u-x', code: 'SVL25-ABCDE', redeemed_at: null }],
     features: [], media: { hm0: { id: 'hm0', storage_bucket: 'media', storage_path: 'x/hotlists/a.png', alt_text: 'A' } },
     businesses: [{ id: 'b1', tenant_id: T, slug: 'sample-creekside-cafe', name: 'Sample Creekside Cafe' }], tenant: T, calls: [], saveError: null, claimError: null,
+  };
+}
+
+export function freshPostcards() {
+  return {
+    eligible: [{ id: 'e0000000-0000-4000-8000-000000000001', name: 'Alpha Plumbing', city: 'Afton' }, { id: 'e0000000-0000-4000-8000-000000000002', name: 'Beta Bakery', city: 'Thayne' }],
+    batches: [{ id: 'bb1', label: 'September mailing', created_at: '2026-09-15T12:00:00Z', cards: [
+      { id: 'c0000000-0000-4000-8000-000000000001', business: 'Gamma Cafe', status: 'issued', issued_at: '2026-09-15T12:00:00Z', redeemed_at: null },
+      { id: 'c0000000-0000-4000-8000-000000000002', business: 'Delta Dental', status: 'redeemed', issued_at: '2026-09-15T12:00:00Z', redeemed_at: '2026-09-20T12:00:00Z' }] }],
+    codes: [{ code: 'ABCDEFGHJK', owner: 'u-owner', status: 'issued' }], nextCodes: ['K7Q2MXVB9P', 'AB23CD45EF'], created: [], calls: [], redeemError: null, createError: null,
   };
 }

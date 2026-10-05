@@ -34,6 +34,7 @@
     "e2e:pricing": "node scripts/e2e-pricing.mjs",
     "a11y": "node scripts/a11y-axe.mjs",
     "e2e:hotlist": "node scripts/e2e-hotlist.mjs",
+    "e2e:postcards": "node scripts/e2e-postcards.mjs",
     "e2e:claim-invite": "node scripts/e2e-claim-invite.mjs"
   },
   "dependencies": {
