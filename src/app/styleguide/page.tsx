@@ -33,7 +33,7 @@ export default function Styleguide() {
           <p className="text-lg text-text-body">Body: Whether you&apos;re a local or just visiting, Star Valley has something for everyone.</p>
           <p className="text-text-muted">Muted: From fall hikes and local events to great food and family fun.</p>
           <p className="text-sm text-text-subtle">Subtle: Oct 22, 2026 · 2 min read</p>
-          <p><a href="#sg-type">An inline link</a> and <span className="font-medium text-brand-text">brand text on cream</span></p>
+          <p><a href="#sg-type" className="underline">An inline link</a> and <span className="font-medium text-brand-text">brand text on cream</span></p>
         </div>
       </section>
 

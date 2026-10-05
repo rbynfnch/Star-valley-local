@@ -58,7 +58,7 @@ export default async function Events(props: PageProps<"/events">) {
             <p className="mt-4 text-sm text-text-muted">Hosting something? <Link href="/submit-event" className="font-semibold text-link underline">Submit an event</Link>.</p>
           </aside>
           <section aria-labelledby="events-results">
-            <h2 id="events-results" className="sr-only">Events</h2>
+            <h2 id="events-results" className="sr-only">Event results</h2>
             <p role="status" className="mb-4 text-lg font-semibold text-text">{list.total === 0 ? "No events found" : list.total === 1 ? "1 event" : `${list.total} events`}</p>
             {list.items.length > 0 ? (
               <ul className="grid gap-3">{list.items.map((ev) => <EventRow key={ev.key} ev={ev} tz={tenant.timezone} />)}</ul>

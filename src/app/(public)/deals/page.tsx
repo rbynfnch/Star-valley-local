@@ -34,7 +34,7 @@ export default async function Deals(props: PageProps<"/deals">) {
         <p role="status" className="mb-4 text-lg font-semibold text-text">{r.total === 0 ? "No deals right now" : r.total === 1 ? "1 deal" : `${r.total} deals`}</p>
         {r.cards.length > 0 && <TrackEvents events={r.cards.slice(0, 24).map((d) => ({ type: "deal_view", business_id: d.businessId, deal_id: d.id, surface: "deals" }))} />}
         {r.cards.length > 0 ? (
-          <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{r.cards.map((d) => <DealItem key={d.id} d={d} />)}</ul>
+          <><h2 className="sr-only">Current deals</h2><ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{r.cards.map((d) => <DealItem key={d.id} d={d} />)}</ul></>
         ) : (
           <div className="rounded-card bg-surface-muted p-8 text-center">
             <p className="font-heading text-xl font-bold">No deals match</p>

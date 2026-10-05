@@ -32,6 +32,7 @@
     "e2e:editorial": "node scripts/e2e-editorial.mjs",
     "e2e:tracking": "node scripts/e2e-tracking.mjs",
     "e2e:pricing": "node scripts/e2e-pricing.mjs",
+    "a11y": "node scripts/a11y-axe.mjs",
     "e2e:claim-invite": "node scripts/e2e-claim-invite.mjs"
   },
   "dependencies": {
