@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatEventDay, formatTimeRange } from "@/lib/format";
 import type { ArticleCard } from "@/lib/content/articles";
-import type { DealCard } from "@/lib/content/deals";
 import type { EventItem } from "@/lib/content/events";
 import { categoryStyle } from "@/components/directory/CategoryTile";
 
@@ -26,26 +25,6 @@ export function EventRow({ ev, tz }: { ev: EventItem; tz: string }) {
           {ev.category && <p className="mt-1"><span style={categoryStyle(ev.categoryColor)} className="rounded-chip px-2 py-0.5 text-xs font-semibold">{ev.category}</span></p>}
         </div>
       </Link>
-    </li>
-  );
-}
-
-export function DealItem({ d }: { d: DealCard }) {
-  return (
-    <li className="flex flex-col gap-2 rounded-card bg-surface-card p-5 shadow-card">
-      <div className="flex flex-wrap items-center gap-2">
-        {d.badge && <span className="rounded-chip bg-featured-bg px-2 py-0.5 text-xs font-bold text-on-light-accent">{d.badge}</span>}
-        {d.endsSoon && <span className="rounded-chip bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-body">Ends soon</span>}
-      </div>
-      <h3 className="font-heading text-xl font-bold leading-snug [overflow-wrap:anywhere]">{d.title}</h3>
-      <p className="text-sm text-text-muted [overflow-wrap:anywhere]">
-        <Link href={`/business/${d.businessSlug}`} className="font-semibold text-link underline underline-offset-4">{d.businessName}</Link>
-        {[d.categoryName, d.communityName].filter(Boolean).length > 0 && <> · {[d.categoryName, d.communityName].filter(Boolean).join(" · ")}</>}
-      </p>
-      {d.description && <p className="text-text-body [overflow-wrap:anywhere]">{d.description}</p>}
-      <p className="mt-auto pt-1 text-sm text-text-muted">{d.validText}</p>
-      {d.terms && <p className="text-xs text-text-muted [overflow-wrap:anywhere]">{d.terms}</p>}
-      <p><Link href={`/business/${d.businessSlug}#deals`} className="inline-block rounded-button bg-brand px-4 py-2 text-sm font-semibold text-brand-contrast hover:bg-brand-hover">View deal<span className="sr-only"> from {d.businessName}</span></Link></p>
     </li>
   );
 }

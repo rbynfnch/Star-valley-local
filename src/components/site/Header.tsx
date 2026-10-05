@@ -6,7 +6,7 @@ import { brandAssets } from "@/lib/tenant/brand";
 export const NAV = [
   { href: "/businesses", label: "Businesses" },
   { href: "/events", label: "Events" },
-  { href: "/deals", label: "Deals" },
+  { href: "/hotlist", label: "Hotlist" },
   { href: "/things-to-do", label: "Things to Do" },
   { href: "/articles", label: "Articles" },
 ] as const;

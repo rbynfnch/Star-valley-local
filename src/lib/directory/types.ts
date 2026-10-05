@@ -69,6 +69,19 @@ export type ProfileRaw = {
 
 // Everything the public pages read. Implemented by supabase.ts (production) and fixtures.ts (dev/test only).
 // Methods return only what the anonymous role may read; the database (RLS + views) is the access policy.
+/** One Local Hotlist item as the list function returns it (visible = published, started, business public, not ended). */
+export interface HotlistListRow {
+  id: string; slug: string; kind: "deal" | "pick"; category: "places" | "eat_drink" | "things_to_do" | "shop" | "new_notable";
+  badge: "hot_deal" | "local_exclusive" | "limited_drop" | "hotlist_pick"; title: string; summary: string | null;
+  business_id: string; business_name: string; business_slug: string; community_id: string | null; image_media_id: string | null;
+  starts_at: string; ends_at: string | null; original_cents: number | null; price_cents: number | null; quantity: number | null;
+  claimed_count: number | string; published_at: string | null;
+}
+/** hotlist_detail(): the same plus the long text; present even after an offer ends so shared links keep working. */
+export interface HotlistDetailRaw extends HotlistListRow { body: string | null; redemption: string | null; terms: string | null }
+export interface HotlistQuery { kind: "deal" | "pick" | null; category: string | null; q: string; communityId: string | null; maxPriceCents: number | null; sort: "newest" | "ending" | "popular"; limit: number; offset: number }
+export interface HotlistFeatureRow { slot: "hottest" | "this_week" | "business"; position: number; item_id: string }
+
 export interface DirectoryData {
   tenantByHost(candidates: string[]): Promise<Tenant | null>;
   tenantBySlug(slug: string): Promise<Tenant | null>;
@@ -108,6 +121,10 @@ export interface DirectoryData {
   authors(tenantId: string, ids: string[]): Promise<Author[]>;
   mediaAssets(tenantId: string, ids: string[]): Promise<MediaRow[]>;
   businessesByIds(tenantId: string, ids: string[]): Promise<BusinessRow[]>;
+  hotlistList(tenantId: string, q: HotlistQuery): Promise<{ rows: HotlistListRow[]; total: number }>;
+  hotlistDetail(tenantId: string, slug: string): Promise<HotlistDetailRaw | null>;
+  hotlistFeatures(tenantId: string): Promise<HotlistFeatureRow[]>;
+  hotlistCategoryCounts(tenantId: string): Promise<{ category: string; kind: string; n: number }[]>;
   /** Businesses with a live Things to Do placement. */
   thingsToDoFeatured(tenantId: string): Promise<BusinessRow[]>;
 }

@@ -5,7 +5,7 @@ import { SearchIcon } from "@/components/icons";
 const SCOPES = [
   { value: "businesses", label: "Businesses", action: "/businesses" },
   { value: "events", label: "Events", action: "/events" },
-  { value: "deals", label: "Deals", action: "/deals" },
+  { value: "hotlist", label: "Hotlist", action: "/hotlist" },
   { value: "articles", label: "Articles", action: "/articles" },
 ] as const;
 

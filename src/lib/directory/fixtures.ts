@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { psqlJson } from "./psql.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { ArticleCategory, ArticleFull, ArticleItem, ArticleListRow, ArticleQuery, Author, BusinessRow, Category, Community, CountRow, DealRow, DirectoryData, EventCategory, EventRow, MediaRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { ArticleCategory, ArticleFull, ArticleItem, ArticleListRow, ArticleQuery, Author, BusinessRow, Category, Community, CountRow, DealRow, DirectoryData, HotlistDetailRaw, HotlistFeatureRow, HotlistListRow, EventCategory, EventRow, MediaRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 function withoutTotal<T extends { total_count: unknown }>(r: T): Omit<T, "total_count"> { const c = { ...r } as Partial<T>; Reflect.deleteProperty(c, "total_count"); return c as Omit<T, "total_count">; }
 // DEVELOPMENT/TEST ONLY. Serves a snapshot exported from a seeded local database AS THE ANONYMOUS ROLE
@@ -68,6 +68,19 @@ export function fixturesDirectory(path = join(process.cwd(), ".fixtures", "direc
         "select coalesce(jsonb_agg(t), '[]'::jsonb) from public.list_articles(:'tenant'::uuid, nullif(:'q', ''), nullif(:'cat', '')::uuid, :'feat'::boolean, :'lim'::int, :'off'::int) t",
         { tenant: id, q: q.q, cat: q.categoryId ?? "", feat: String(q.featured), lim: String(q.limit), off: String(q.offset) });
       return { rows: rows.map((r) => withoutTotal(r)), total: rows.length ? Number(rows[0].total_count) : 0 };
+    },
+    // The REAL hotlist functions, run as the anonymous role.
+    async hotlistList(id, q) {
+      const rows = psqlJson<(HotlistListRow & { total_count: number | string })[]>(
+        "select coalesce(jsonb_agg(t), '[]'::jsonb) from public.hotlist_list(:'tenant'::uuid, nullif(:'kind', ''), nullif(:'cat', ''), nullif(:'q', ''), nullif(:'comm', '')::uuid, nullif(:'price', '')::int, :'sort', :'lim'::int, :'off'::int) t",
+        { tenant: id, kind: q.kind ?? "", cat: q.category ?? "", q: q.q, comm: q.communityId ?? "", price: q.maxPriceCents === null ? "" : String(q.maxPriceCents), sort: q.sort, lim: String(q.limit), off: String(q.offset) });
+      return { rows: rows.map((r) => withoutTotal(r)), total: rows.length ? Number(rows[0].total_count) : 0 };
+    },
+    async hotlistDetail(id, slug) { return psqlJson<HotlistDetailRaw | null>("select public.hotlist_detail(:'tenant'::uuid, :'slug')::text::jsonb", { tenant: id, slug }); },
+    async hotlistFeatures(id) { return psqlJson<HotlistFeatureRow[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.hotlist_features_public(:'tenant'::uuid) t", { tenant: id }); },
+    async hotlistCategoryCounts(id) {
+      const rows = psqlJson<{ category: string; kind: string; n: number | string }[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.hotlist_category_counts(:'tenant'::uuid) t", { tenant: id });
+      return rows.map((x) => ({ ...x, n: Number(x.n) }));
     },
     async articleCategoryCounts(id) {
       const rows = psqlJson<{ category_id: string | null; n: number | string }[]>("select coalesce(jsonb_agg(t), '[]'::jsonb) from public.article_category_counts(:'tenant'::uuid) t", { tenant: id });

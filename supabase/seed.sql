@@ -324,3 +324,60 @@ from public.businesses b
 join (values ('sample-valley-plumbing','20% off water heater tune-up','Sample deal.','percent',20,30),
              ('sample-wind-river-outfitters','$10 off gear rental','Sample deal.','amount',10,45),
              ('sample-valley-mercantile','Buy 1 get 1 on select items','Sample deal.','bogo',null,20)) v(slug, title, descr, dt, val, days) on v.slug = b.slug;
+
+-- ------------------------------------------------------------------------------------------------ Local Hotlist (curated)
+-- Fictional businesses and offers. Deals meet the real quality rule (save at least $10 or 20%); picks have no price.
+insert into public.media_assets (tenant_id, business_id, storage_bucket, storage_path, alt_text, width, height)
+select b.tenant_id, b.id, 'media', 'demo/' || v.img || '.png', v.alt, 1600, 1000 from public.businesses b
+join (values
+  ('sample-creekside-cafe', 'hl-breakfast', 'A sunlit breakfast table with coffee and pastries'),
+  ('sample-wind-river-outfitters', 'hl-fishing', 'A river at dawn below the mountains'),
+  ('sample-snake-river-brewing', 'hl-brewery', 'Beer flight on a wooden table'),
+  ('sample-valley-mercantile', 'hl-mercantile', 'Shelves of local goods in a general store'),
+  ('sample-lakeview-lodge', 'hl-cabin', 'A lodge cabin under the evening sky'),
+  ('sample-salon-twelve', 'hl-salon', 'A bright salon chair by a window'),
+  ('sample-thayne-diner', 'hl-pie', 'A slice of pie on a diner counter'),
+  ('sample-aspen-cabins', 'hl-view', 'A cabin porch looking across the valley'),
+  ('sample-lakeview-lodge', 'hl-drive', 'A road through autumn aspens'),
+  ('sample-little-peaks-learning', 'hl-storytime', 'Children''s books arranged on a rug')) v(bslug, img, alt) on b.slug = v.bslug;
+
+insert into public.hotlist_items (tenant_id, business_id, kind, category, badge, slug, title, summary, body, image_media_id, status, starts_at, ends_at,
+                                  original_cents, price_cents, quantity, code_prefix, redemption, terms, published_at)
+select b.tenant_id, b.id, v.kind::public.hotlist_kind, v.cat::public.hotlist_category, v.badge::public.hotlist_badge, v.slug, v.title, v.summary, v.body,
+       (select m.id from public.media_assets m where m.storage_path = 'demo/' || v.img || '.png'), 'published',
+       now() - interval '3 days', case when v.days is null then null else now() + (v.days || ' days')::interval end,
+       v.orig, v.price, v.qty, v.prefix, v.redeem, v.terms, now() - interval '3 days'
+from public.businesses b join (values
+  ('sample-wind-river-outfitters','deal','things_to_do','limited_drop','half-day-guided-fly-fishing','Half-day guided fly fishing for one',
+   'Four hours on the river with a guide, all gear included.', 'Our guides know every riffle between Alpine and Afton. You bring the curiosity, they bring the rods, waders and flies. A fall favourite, and the river is at its best right now.', 'hl-fishing', 24000, 17900, 8, 'FISH', 'Show your Hotlist code when you book by phone, or at check-in. Pay the Hotlist price to the outfitter.', 'One per person. Weekdays through October. Sample offer.', 5),
+  ('sample-valley-mercantile','deal','shop','hot_deal','forty-dollars-of-local-goods','$40 of local goods for $25',
+   'A Valley Mercantile credit worth $40, for $25.', 'Candles, jams, wool socks and the best jerky in the valley. Use it all at once or save it for the holidays.', 'hl-mercantile', 4000, 2500, 25, 'SVL25', 'Show the code at the register. Pay $25 and receive a $40 store credit.', 'In-store only. Not combinable with other offers. Sample offer.', 14),
+  ('sample-creekside-cafe','deal','eat_drink','hot_deal','breakfast-for-two','Breakfast for two',
+   'Two breakfast plates and two coffees.', 'Order anything from the breakfast menu: two plates and two coffees, on the patio if the weather holds.', 'hl-breakfast', 3600, 2400, 40, 'CAFE24', 'Show the code to your server before ordering.', 'Dine in. Weekdays before 11 AM. Sample offer.', 20),
+  ('sample-snake-river-brewing','deal','eat_drink','local_exclusive','flight-and-pretzel-for-two','Beer flight and pretzel for two',
+   'Two flights and a giant pretzel.', 'Eight small pours, two to share and a warm pretzel with beer cheese. Sit by the window and take your time.', 'hl-brewery', 3200, 2200, null, 'FLIGHT', 'Show the code to your server.', 'Ages 21 and over. Sample offer.', 12),
+  ('sample-lakeview-lodge','deal','places','hot_deal','midweek-cabin-night','Midweek cabin night',
+   'One night in a lakeview cabin, Sunday to Thursday.', 'Woodstove, a deck over the water and a short walk to the trail. Book a quiet midweek night and pay far less.', 'hl-cabin', 18900, 13900, 6, 'CABIN', 'Call the lodge, mention the Hotlist, and give your code when you arrive.', 'Sunday to Thursday, subject to availability. Sample offer.', 21),
+  ('sample-salon-twelve','deal','new_notable','limited_drop','opening-month-cut-and-style','Opening-month cut and style',
+   'A cut and style at the new salon, for less.', 'Salon Twelve opened this month on Main Street. Meet the stylists and pay the opening price.', 'hl-salon', 8000, 5500, 15, 'TWELVE', 'Book by phone and give your code at the chair.', 'First visit only. Sample offer.', 30),
+  ('sample-thayne-diner','pick','eat_drink','hotlist_pick','pie-of-the-week','Pie of the week at the Thayne Diner',
+   'Go before noon on Saturday, while the pie lasts.', 'Our editors keep going back for the rotating pie, and the answer is always the same: get the pie. This week it is huckleberry.', 'hl-pie', null, null, null, null, null, null, null),
+  ('sample-aspen-cabins','pick','places','hotlist_pick','a-porch-with-a-view','A porch worth the drive',
+   'The best valley view you can sit down for.', 'Aspen Cabins keeps a porch facing the whole valley. Order something warm and stay for the light.', 'hl-view', null, null, null, null, null, null, null),
+  ('sample-lakeview-lodge','pick','things_to_do','hotlist_pick','fall-color-drive','The fall color drive',
+   'Ninety minutes, one tank of gas, aspens the whole way.', 'Start at the lodge, follow the lake road and stop wherever the light looks best. Go this week.', 'hl-drive', null, null, null, null, null, null, null),
+  ('sample-little-peaks-learning','pick','new_notable','hotlist_pick','saturday-story-hour','New: Saturday story hour',
+   'Free, friendly and a good excuse to leave the house.', 'Little Peaks Learning now opens its reading room to the whole valley on Saturday mornings.', 'hl-storytime', null, null, null, null, null, null, null)
+) v(bslug, kind, cat, badge, slug, title, summary, body, img, orig, price, qty, prefix, redeem, terms, days) on b.slug = v.bslug;
+
+-- What the editors have put on the landing page, and a few claims so "limited" and "most popular" have something to show.
+insert into public.hotlist_features (tenant_id, item_id, slot, position)
+select i.tenant_id, i.id, v.slot::public.hotlist_slot, v.pos from public.hotlist_items i join (values
+  ('half-day-guided-fly-fishing','hottest',1), ('forty-dollars-of-local-goods','hottest',2), ('midweek-cabin-night','hottest',3),
+  ('breakfast-for-two','this_week',1), ('flight-and-pretzel-for-two','this_week',2), ('pie-of-the-week','this_week',3), ('a-porch-with-a-view','this_week',4), ('fall-color-drive','this_week',5), ('saturday-story-hour','this_week',6),
+  ('pie-of-the-week','business',1)) v(slug, slot, pos) on i.slug = v.slug;
+insert into auth.users (id, email) select ('00000000-0000-4000-8000-0000000001' || lpad(n::text, 2, '0'))::uuid, 'demo-consumer-' || n || '@star-valley.example' from generate_series(1, 7) n;
+insert into public.hotlist_claims (tenant_id, item_id, user_id, code)
+select i.tenant_id, i.id, ('00000000-0000-4000-8000-0000000001' || lpad(n::text, 2, '0'))::uuid, i.code_prefix || '-' || upper(substr(md5(i.slug || n::text), 1, 5))
+from public.hotlist_items i join (values ('half-day-guided-fly-fishing', 6), ('midweek-cabin-night', 5), ('forty-dollars-of-local-goods', 4), ('opening-month-cut-and-style', 2), ('breakfast-for-two', 3)) v(slug, c) on i.slug = v.slug
+cross join generate_series(1, 7) n where n <= v.c;

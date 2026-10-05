@@ -37,6 +37,8 @@ const nextConfig: NextConfig = {
   images: { remotePatterns },
   poweredByHeader: false,
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
+  // The Hotlist replaced the Deals page.
+  async redirects() { return [{ source: "/deals", destination: "/hotlist", permanent: true }]; },
   async headers() { return process.env.NODE_ENV === "production" ? [{ source: "/:path*", headers: securityHeaders }] : []; },
 };
 

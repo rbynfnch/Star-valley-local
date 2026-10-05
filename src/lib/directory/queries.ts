@@ -24,6 +24,6 @@ export const PUBLIC_READS = {
 
 // RPC functions the public site calls (anon must be allowed to EXECUTE each; checked by anon-access.test.ts).
 // Each entry: the SQL arguments to call it with, where $T is a tenant id.
-export const PUBLIC_RPC = { search_businesses: "$T, null", directory_counts: "$T", business_profile: "$T, 'x'", placement_scarcity: "$T", list_articles: "$T, null, null, false, 1, 0", article_category_counts: "$T" } as const satisfies Record<string, string>;
+export const PUBLIC_RPC = { search_businesses: "$T, null", directory_counts: "$T", business_profile: "$T, 'x'", placement_scarcity: "$T", list_articles: "$T, null, null, false, 1, 0", article_category_counts: "$T", hotlist_list: "$T", hotlist_detail: "$T, 'x'", hotlist_features_public: "$T", hotlist_category_counts: "$T" } as const satisfies Record<string, string>;
 
 export const cols = (t: keyof typeof PUBLIC_READS): string => PUBLIC_READS[t].join(",");

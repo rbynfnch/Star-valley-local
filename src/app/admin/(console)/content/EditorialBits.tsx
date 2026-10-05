@@ -45,12 +45,12 @@ export function DeleteButton({ kind, id, what }: { kind: "article" | "event"; id
   );
 }
 
-export function CoverImage({ kind, id, current, mediaBase }: { kind: "article" | "event"; id: string; current: { bucket: string; path: string; alt: string | null } | null; mediaBase: string | null }) {
+export function CoverImage({ kind, id, current, mediaBase }: { kind: "article" | "event" | "hotlist"; id: string; current: { bucket: string; path: string; alt: string | null } | null; mediaBase: string | null }) {
   const url = current ? mediaUrl(mediaBase, current.bucket, current.path) : null;
   const [rm, rmDispatch, rmPending] = useActionState<EditorialState, FormData>(removeCover, {});
   return (
     <section aria-labelledby="cover-h" className="rounded-card bg-surface-card p-4 shadow-card">
-      <h2 id="cover-h" className="font-heading text-lg font-semibold text-text">{kind === "article" ? "Cover image" : "Event image"}</h2>
+      <h2 id="cover-h" className="font-heading text-lg font-semibold text-text">{kind === "article" ? "Cover image" : kind === "hotlist" ? "Photo" : "Event image"}</h2>
       <p className="mt-1 text-sm text-text-muted">JPEG, PNG or WebP, at most 5 MB, at least 200 pixels on a side. Describe it for people who cannot see it.</p>
       {current && (
         <div className="mt-3 flex flex-wrap items-start gap-4">

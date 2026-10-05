@@ -92,8 +92,10 @@ try {
   check(await waitFor(() => events().some((e) => e.surface === 'category' && e.category_id)), 'a category page records appearances with the category');
   reset(); await page.goto(`${root}/communities/afton`);
   check(await waitFor(() => events().some((e) => e.surface === 'community' && e.community_id)), 'a community page records appearances with the community');
-  reset(); await page.goto(`${root}/deals`);
-  check(await waitFor(() => events().filter((e) => e.type === 'deal_view' && e.surface === 'deals' && e.deal_id && e.business_id).length === fx.deals.length), 'the deals page records a deal view for each deal shown');
+  reset(); await page.goto(`${root}/business/sample-valley-plumbing`);
+  check(await waitFor(() => events().some((e) => e.type === 'deal_view' && e.deal_id && e.business_id && e.surface === 'profile')), 'a profile with deals records a deal view for each');
+  reset(); await page.goto(`${root}/deals`); await new Promise((x) => setTimeout(x, 800));
+  check(/\/hotlist/.test(page.url()) && state.tracking.length === 0, 'the old Deals address now lands on the Hotlist, which records nothing');
   reset(); await page.goto(`${root}/`);
   await new Promise((x) => setTimeout(x, 1000));
   check(state.tracking.every((t) => t.p_events.every((e) => e.surface === 'home')), 'the home page records only featured appearances (if any are shown)');

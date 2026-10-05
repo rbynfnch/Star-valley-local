@@ -73,7 +73,7 @@ export async function deleteEvent(_s: EditorialState, form: FormData) { return r
 // Cover images: the server stores the file (type from its bytes, never the filename), the database function records it.
 export async function uploadCover(_s: EditorialState, form: FormData): Promise<EditorialState> {
   const staff = await requireArea("content");
-  const kind = form.get("kind") === "event" ? "event" : "article", id = String(form.get("id") ?? "");
+  const kind = form.get("kind") === "event" ? "event" : form.get("kind") === "hotlist" ? "hotlist" : "article", id = String(form.get("id") ?? "");
   if (!isUuid(id)) return { error: "Unknown item." };
   const alt = String(form.get("alt") ?? "").replace(/\s+/g, " ").trim();
   if (!alt) return { error: "Describe the image for people who cannot see it (alt text)." };
@@ -92,17 +92,17 @@ export async function uploadCover(_s: EditorialState, form: FormData): Promise<E
   const { data, error } = await supabase.rpc("set_content_image", { p_tenant: staff.tenant.id, p_kind: kind, p_id: id, p_bucket: BUCKET, p_path: path, p_alt: alt, p_width: img.width, p_height: img.height, p_bytes: bytes.length });
   if (error) { await removeFile(path); return { error: friendly(error) }; }
   await removeFile((data as { replaced?: { path?: string } | null } | null)?.replaced?.path);
-  revalidatePath(`/admin/content/${kind}s/${id}`);
+  revalidatePath(kind === "hotlist" ? `/admin/hotlist/${id}` : `/admin/content/${kind}s/${id}`);
   return { message: "Image saved." };
 }
 export async function removeCover(_s: EditorialState, form: FormData): Promise<EditorialState> {
   const staff = await requireArea("content");
-  const kind = form.get("kind") === "event" ? "event" : "article", id = String(form.get("id") ?? "");
+  const kind = form.get("kind") === "event" ? "event" : form.get("kind") === "hotlist" ? "hotlist" : "article", id = String(form.get("id") ?? "");
   if (!isUuid(id)) return { error: "Unknown item." };
   const supabase = await createUserClient();
   const { data, error } = await supabase.rpc("clear_content_image", { p_tenant: staff.tenant.id, p_kind: kind, p_id: id });
   if (error) return { error: friendly(error) };
   await removeFile((data as { path?: string | null } | null)?.path);
-  revalidatePath(`/admin/content/${kind}s/${id}`);
+  revalidatePath(kind === "hotlist" ? `/admin/hotlist/${id}` : `/admin/content/${kind}s/${id}`);
   return { message: "Image removed." };
 }

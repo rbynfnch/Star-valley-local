@@ -1,3 +1,7 @@
+import { FlameMark } from "@/components/hotlist/Flame";
+import { HotlistCard } from "@/components/hotlist/HotlistCards";
+import { buildLanding, toCards } from "@/lib/hotlist/view";
+import { mediaBaseUrl } from "@/lib/media";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,6 +27,12 @@ export default async function Home() {
     data.regionName(tenant.id), data.categories(tenant.id), data.communities(tenant.id),
     data.upcomingEventRows(tenant.id, now), data.homepageFeatured(tenant.id),
   ]);
+  const [hotRes, hotFeatures] = await Promise.all([
+    data.hotlistList(tenant.id, { kind: null, category: null, q: "", communityId: null, maxPriceCents: null, sort: "newest", limit: 50, offset: 0 }), data.hotlistFeatures(tenant.id),
+  ]);
+  const hotMedia = await data.mediaAssets(tenant.id, hotRes.rows.map((r) => r.image_media_id).filter((x): x is string => !!x));
+  const hotLanding = buildLanding(toCards(hotRes.rows, hotMedia, communities, mediaBaseUrl()), hotFeatures);
+  const hotPicks = (hotLanding.hottest.length > 0 ? hotLanding.hottest : hotLanding.deals).slice(0, 3);
   const tiles = topLevelCategories(categories);
   const events = buildEventCards(eventRows, communities, categories, now, tenant.timezone);
   const featured = buildFeaturedCards(featuredRows, communities, categories, tenant.id, now);
@@ -45,7 +55,7 @@ export default async function Home() {
           <h1 id="hero-heading" className="max-w-2xl font-heading text-4xl font-bold leading-tight text-text-on-inverse sm:text-5xl">
             Find Local. Discover More.{region && <> Support {region}.</>}
           </h1>
-          <p className="max-w-xl text-lg text-text-on-inverse">Your go-to guide for local businesses, events, deals, and everything {region ?? "our community"} has to offer.</p>
+          <p className="max-w-xl text-lg text-text-on-inverse">Your go-to guide for local businesses, events, the Hotlist, and everything {region ?? "our community"} has to offer.</p>
           <HeroSearch communities={communities.map((c) => ({ slug: c.slug, name: c.name }))} />
         </div>
       </section>
@@ -67,6 +77,16 @@ export default async function Home() {
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {featured.map((b) => <BusinessCard key={b.id} b={b} featured />)}
             </ul>
+          </section>
+        )}
+
+        {hotPicks.length > 0 && (
+          <section aria-labelledby="hotlist-heading">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <h2 id="hotlist-heading" className="flex items-center gap-2 text-2xl font-bold"><FlameMark height={26} />On the Hotlist</h2>
+              <Link href="/hotlist" className="inline-flex items-center gap-1 font-semibold">See the full Hotlist <ArrowRightIcon /></Link>
+            </div>
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{hotPicks.map((c) => <HotlistCard key={c.row.id} data={c} tz={tenant.timezone} now={now} />)}</ul>
           </section>
         )}
 

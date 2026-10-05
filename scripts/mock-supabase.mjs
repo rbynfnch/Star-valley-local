@@ -11,6 +11,7 @@ export const USERS = {
   'tok-rando': { id: 'u-rando', email: 'rando@example.test', role: null },
   'tok-owner': { id: 'u-owner', email: 'owner@example.test', role: null },
   'tok-admin': { id: 'u-admin', email: 'admin@example.test', role: 'admin' },
+  'tok-new': { id: 'u-new2', email: 'new@example.test', role: null, unconfirmed: true },
 };
 export const PASSWORDS = { 'owner@example.test': 'correct-horse-battery' };
 export const SERVICE_KEY = 'service-secret';
@@ -40,6 +41,7 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  hotlist: null,      // Local Hotlist admin + claims (see freshHotlist)
   editorial: null,    // articles/events/deals tables for the content admin (see freshEditorial)
   tracking: [],       // record_tracking arguments received
   activity: null,     // admin_business_activity result (see freshActivity)
@@ -259,7 +261,7 @@ export function startMock() {
         if (args.p_secret === c.secret) { c.status = 'verified'; return json(200, { result: 'verified', level: 'green' }); }
         c.attempts++; return json(200, c.attempts >= 5 ? { result: 'rejected' } : { result: 'wrong', attempts_left: 5 - c.attempts });
       }
-      if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }) : json(401, { msg: 'invalid' });
+      if (req.url.startsWith('/auth/v1/user')) return u ? json(200, { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z', ...(u.unconfirmed ? {} : { email_confirmed_at: '2026-01-02T00:00:00Z' }) }) : json(401, { msg: 'invalid' });
       if (rpc === 'my_staff_role') return json(200, u?.role ?? null);
       if (rpc === 'admin_dashboard_counts') return !u?.role ? json(403, { code: '42501', message: 'staff only' }) : json(200, { total: 27, prospects: 4, verified: 9, enhanced: 6, featured: 3, needing_verification: 11, pending_submissions: 4 });
       const salesOnly = !u?.role || u.role === 'editor';
@@ -311,6 +313,52 @@ export function startMock() {
         return json(200, { ErrorCode: 0, Message: 'OK', MessageID: 'pm-' + state.email.postmark.length, To: b.To });
       }
 
+      // ---- Local Hotlist: tables read by the signed-in editor through PostgREST, writes through RPCs; claims through the service key
+      if (state.hotlist && (req.method === 'GET' || req.method === 'HEAD') && /^\/rest\/v1\/(hotlist_items|hotlist_claims|hotlist_features|businesses|media_assets)\b/.test(req.url) && u?.role) {
+        const t = /^\/rest\/v1\/([a-z_]+)/.exec(req.url)[1], q = new URL(req.url, 'http://x').searchParams, H = state.hotlist;
+        const src = { hotlist_items: H.items, hotlist_claims: H.claims, hotlist_features: H.features, businesses: H.businesses, media_assets: Object.values(H.media) }[t];
+        let rows = src.filter((r) => [...q.entries()].every(([k, v]) => {
+          if (['select', 'order', 'limit', 'offset'].includes(k)) return true;
+          if (v.startsWith('eq.')) return r[k] === undefined || r[k] === null ? (k === 'tenant_id') : String(r[k]) === v.slice(3);
+          if (v.startsWith('in.(')) return v.slice(4, -1).split(',').includes(String(r[k]));
+          return true;
+        }));
+        if (req.method === 'HEAD') { res.writeHead(200, { 'content-range': `*/${rows.length}` }); return res.end(); }
+        if ((req.headers.accept ?? '').includes('pgrst.object')) return rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows', details: '', hint: null });
+        return json(200, rows);
+      }
+      if (state.hotlist && /^(save_hotlist_item|review_hotlist_item|delete_hotlist_item|set_hotlist_features|redeem_hotlist_code|hotlist_claim|hotlist_my_claim)$/.test(rpc ?? '')
+          || (state.hotlist && (rpc === 'set_content_image' || rpc === 'clear_content_image') && args.p_kind === 'hotlist')) {
+        const H = state.hotlist; H.calls.push({ rpc, ...args, _who: u?.id ?? 'service' });
+        if (rpc === 'hotlist_claim' || rpc === 'hotlist_my_claim') {
+          if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+          const mine = H.claims.find((c) => c.item_id === args.p_item && c.user_id === args.p_user);
+          if (rpc === 'hotlist_my_claim') return json(200, mine ? { code: mine.code, redeemed: !!mine.redeemed_at } : null);
+          if (H.claimError) return json(H.claimError.status, H.claimError.body);
+          if (mine) return json(200, { code: mine.code, already: true });
+          const c = { id: 'c' + (H.claims.length + 1), item_id: args.p_item, user_id: args.p_user, code: 'SVL25-TEST' + (H.claims.length + 1), redeemed_at: null }; H.claims.push(c);
+          return json(200, { code: c.code, already: false });
+        }
+        if (u?.role !== 'editor' && u?.role !== 'admin' && !(rpc === 'redeem_hotlist_code' && u?.role === 'sales')) return json(403, { code: '42501', message: 'editors only' });
+        if (rpc === 'save_hotlist_item') {
+          const f = args.p_fields, biz = H.businesses.find((b) => b.id === args.p_business);
+          if (H.saveError) return json(H.saveError.status, H.saveError.body);
+          if (args.p_id) { const r = H.items.find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: 'item not found' }); if (args.p_status === 'published' && !r.image_media_id) return json(400, { code: '22023', message: 'add a photo before publishing: the Hotlist is photography-led' }); Object.assign(r, f, { status: args.p_status, business_id: args.p_business }); return json(200, r.id); }
+          const id = 'f0000000-0000-4000-8000-' + String(H.items.length + 500).padStart(12, '0');
+          H.items.push({ id, tenant_id: H.tenant, slug: 'new-' + id.slice(-3), image_media_id: null, reject_reason: null, submitted_by: null, ...f, status: args.p_status, business_id: biz?.id ?? args.p_business }); return json(200, id);
+        }
+        if (rpc === 'review_hotlist_item') {
+          const r = H.items.find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: 'item not found' });
+          if (args.p_decision === 'approve') { if (!r.image_media_id) return json(400, { code: '22023', message: 'add a photo before approving' }); r.status = 'published'; }
+          else { if (!args.p_reason) return json(400, { code: '22023', message: 'say why, so the business knows what to change' }); r.status = 'rejected'; r.reject_reason = args.p_reason; }
+          return json(200, null);
+        }
+        if (rpc === 'delete_hotlist_item') { const r = H.items.find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: 'item not found' }); if (['published', 'pending'].includes(r.status)) return json(400, { code: '22023', message: 'archive a published or pending item instead of deleting it' }); H.items.splice(H.items.indexOf(r), 1); return json(200, { bucket: null, path: null }); }
+        if (rpc === 'set_hotlist_features') { H.features = H.features.filter((x) => x.slot !== args.p_slot); args.p_items.forEach((id, i) => H.features.push({ tenant_id: H.tenant, item_id: id, slot: args.p_slot, position: i + 1 })); return json(200, null); }
+        if (rpc === 'redeem_hotlist_code') { const c = H.claims.find((x) => x.code === String(args.p_code).toUpperCase()); if (!c) return json(404, { code: 'P0002', message: 'no claim has that code' }); const title = H.items.find((i) => i.id === c.item_id)?.title; if (c.redeemed_at) return json(200, { result: 'already_redeemed', title }); c.redeemed_at = new Date().toISOString(); return json(200, { result: 'redeemed', title }); }
+        if (rpc === 'set_content_image') { const r = H.items.find((x) => x.id === args.p_id); if (!r) return json(404, { code: 'P0002', message: 'hotlist not found' }); const id = 'hm' + (Object.keys(H.media).length + 1); H.media[id] = { id, storage_bucket: args.p_bucket, storage_path: args.p_path, alt_text: args.p_alt }; r.image_media_id = id; return json(200, { id, replaced: null }); }
+        if (rpc === 'clear_content_image') { const r = H.items.find((x) => x.id === args.p_id); if (r) { r.image_media_id = null; if (r.status === 'published') r.status = 'draft'; } return json(200, { bucket: null, path: null }); }
+      }
       // ---- editorial content admin: tables read through PostgREST by the signed-in editor, writes through RPCs
       if (state.editorial && (req.method === 'GET' || req.method === 'HEAD') && /^\/rest\/v1\/(articles|community_events|deals|article_categories|event_categories|authors|article_items|media_assets|businesses)\b/.test(req.url) && (u?.role === 'editor' || u?.role === 'admin' || u?.role === 'sales')) {
         const t = /^\/rest\/v1\/([a-z_]+)/.exec(req.url)[1], q = new URL(req.url, 'http://x').searchParams, E = state.editorial;
@@ -434,3 +482,14 @@ export const cookieFor = (tok) => {
   const session = { access_token: tok, refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: { id: USERS[tok]?.id ?? 'forged', email: USERS[tok]?.email ?? 'forged@example.test' } };
   return `sb-localhost-auth-token=base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
 };
+
+export function freshHotlist(T = 'a0000000-0000-4000-8000-000000000001') {
+  const item = (n, o) => ({ id: 'f0000000-0000-4000-8000-' + String(n).padStart(12, '0'), tenant_id: T, slug: 'item-' + n, kind: 'deal', category: 'eat_drink', badge: 'hot_deal', title: 'Item ' + n, summary: null, body: null, status: 'published',
+    starts_at: '2026-10-01T06:00:00Z', ends_at: '2026-12-01T07:00:00Z', original_cents: 4000, price_cents: 2500, quantity: 10, code_prefix: 'SVL25', redemption: 'Show the code.', terms: null, business_id: 'b1', image_media_id: 'hm0', reject_reason: null, submitted_by: null, ...o });
+  return {
+    items: [item(1, { title: 'Live deal', status: 'published' }), item(2, { title: 'Owner submission', status: 'pending', image_media_id: null, submitted_by: 'u-owner' }), item(3, { title: 'A draft pick', kind: 'pick', badge: 'hotlist_pick', original_cents: null, price_cents: null, quantity: null, code_prefix: null, redemption: null, status: 'draft', image_media_id: null })],
+    claims: [{ id: 'c0', item_id: 'f0000000-0000-4000-8000-000000000001', user_id: 'u-x', code: 'SVL25-ABCDE', redeemed_at: null }],
+    features: [], media: { hm0: { id: 'hm0', storage_bucket: 'media', storage_path: 'x/hotlists/a.png', alt_text: 'A' } },
+    businesses: [{ id: 'b1', tenant_id: T, slug: 'sample-creekside-cafe', name: 'Sample Creekside Cafe' }], tenant: T, calls: [], saveError: null, claimError: null,
+  };
+}

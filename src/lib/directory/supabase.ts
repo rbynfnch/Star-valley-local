@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cols } from "./queries.ts";
 import { splitSearchRows } from "./search-rows.ts";
-import type { ArticleCategory, ArticleFull, ArticleItem, ArticleListRow, ArticleQuery, Author, BusinessRow, Category, Community, CountRow, DealRow, DirectoryData, EventCategory, EventRow, MediaRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
+import type { ArticleCategory, ArticleFull, ArticleItem, ArticleListRow, ArticleQuery, Author, BusinessRow, Category, Community, CountRow, DealRow, DirectoryData, HotlistDetailRaw, HotlistFeatureRow, HotlistListRow, EventCategory, EventRow, MediaRow, Product, ProfileRaw, Scarcity, SearchQuery, SearchResult, SearchRow, Tenant } from "./types.ts";
 
 function withoutTotal<T extends { total_count: unknown }>(r: T): Omit<T, "total_count"> { const c = { ...r } as Partial<T>; Reflect.deleteProperty(c, "total_count"); return c as Omit<T, "total_count">; }
 // Production implementation: the anonymous (public) key only. Flat selects, no relationship embedding, so every
@@ -106,6 +106,27 @@ export function supabaseDirectory(url = process.env.NEXT_PUBLIC_SUPABASE_URL, ke
       if (r.error) throw new Error(`list_articles: ${r.error.message}`);
       const rows = (r.data ?? []) as unknown as (ArticleListRow & { total_count: number | string })[];
       return { rows: rows.map((r) => withoutTotal(r)), total: rows.length ? Number(rows[0].total_count) : 0 };
+    },
+    async hotlistList(tenantId, q) {
+      const r = await db.rpc("hotlist_list", { p_tenant: tenantId, p_kind: q.kind, p_category: q.category, p_q: q.q || null, p_community: q.communityId, p_max_price_cents: q.maxPriceCents, p_sort: q.sort, p_limit: q.limit, p_offset: q.offset });
+      if (r.error) throw new Error(`hotlist_list: ${r.error.message}`);
+      const rows = (r.data ?? []) as unknown as (HotlistListRow & { total_count: number | string })[];
+      return { rows: rows.map((x) => withoutTotal(x)), total: rows.length ? Number(rows[0].total_count) : 0 };
+    },
+    async hotlistDetail(tenantId, slug) {
+      const r = await db.rpc("hotlist_detail", { p_tenant: tenantId, p_slug: slug });
+      if (r.error) throw new Error(`hotlist_detail: ${r.error.message}`);
+      return (r.data ?? null) as unknown as HotlistDetailRaw | null;
+    },
+    async hotlistFeatures(tenantId) {
+      const r = await db.rpc("hotlist_features_public", { p_tenant: tenantId });
+      if (r.error) throw new Error(`hotlist_features_public: ${r.error.message}`);
+      return (r.data ?? []) as unknown as HotlistFeatureRow[];
+    },
+    async hotlistCategoryCounts(tenantId) {
+      const r = await db.rpc("hotlist_category_counts", { p_tenant: tenantId });
+      if (r.error) throw new Error(`hotlist_category_counts: ${r.error.message}`);
+      return ((r.data ?? []) as unknown as { category: string; kind: string; n: number | string }[]).map((x) => ({ ...x, n: Number(x.n) }));
     },
     async articleCategoryCounts(tenantId) {
       const r = await db.rpc("article_category_counts", { p_tenant: tenantId });

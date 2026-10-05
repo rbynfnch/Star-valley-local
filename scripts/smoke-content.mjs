@@ -4,7 +4,7 @@ const port = process.argv[2] ?? '3101', host = process.argv[3] ?? 'star-valley.l
 const base = `http://localhost:${port}`;
 let failed = 0;
 const check = (c, m) => { console.log(`${c ? 'ok  ' : 'FAIL'} - ${m}`); if (!c) failed++; };
-const get = async (path) => { const r = await fetch(base + path, { headers: { host: `${host}:${port}` }, redirect: 'manual' }); return { status: r.status, body: await r.text(), type: r.headers.get('content-type') ?? '', disp: r.headers.get('content-disposition') ?? '' }; };
+const get = async (path) => { const r = await fetch(base + path, { headers: { host: `${host}:${port}` }, redirect: 'manual' }); return { status: r.status, body: await r.text(), type: r.headers.get('content-type') ?? '', disp: r.headers.get('content-disposition') ?? '', location: r.headers.get('location') ?? '' }; };
 const text = (h) => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const ld = (h) => [...h.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => { const j = JSON.parse(m[1]); return Array.isArray(j) ? j : [j]; });
 const canonical = (h) => /<link rel="canonical" href="([^"]*)"/.exec(h)?.[1] ?? null;
@@ -34,14 +34,17 @@ r = await get('/events/sample-pumpkin-fest/calendar.ics');
 check(r.status === 200 && /text\/calendar/.test(r.type) && /attachment/.test(r.disp) && /^BEGIN:VCALENDAR\r\n/.test(r.body) && /SUMMARY:Sample Pumpkin Festival\r\n/.test(r.body) && /\r\nEND:VCALENDAR\r\n$/.test(r.body), 'the calendar file is a valid download');
 for (const p of ['/events/nope', '/events/Bad%20Slug', '/events/nope/calendar.ics', '/events/x;y']) { r = await get(p); check(r.status === 404, `${p} is a 404`); }
 
-// ---------- deals ----------
-r = await get('/deals');
-const dealTitles = links(r.body, /<h3 class="font-heading text-xl font-bold[^>]*>([^<]*)</g);
-check(r.status === 200 && dealTitles.length === 3, 'the deals page lists the live deals');
-check(dealTitles[0] === 'Buy 1 get 1 on select items' && dealTitles[1] === '20% off water heater tune-up' && dealTitles[2] === '$10 off gear rental', 'ordered by the soonest end');
-check(/BUY 1 GET 1/.test(r.body) && /20% OFF/.test(r.body) && /\$10 OFF/.test(r.body) && /Valid through/.test(text(r.body)), 'badges and valid-through dates are shown');
-check(links(r.body, /href="(\/business\/[a-z-]+#deals)"/g).length === 3, 'each deal links to its business');
-r = await get('/deals?category=nothing'); check(/No deals match/.test(text(r.body)) && /noindex/.test(robots(r.body) ?? ''), 'an unknown category shows an empty state and is noindex');
+// ---------- hotlist (replaced the deals page) ----------
+r = await get('/deals'); check(r.status === 308 && /\/hotlist$/.test(r.location ?? ''), '/deals redirects permanently to /hotlist');
+r = await get('/hotlist');
+check(r.status === 200 && /What&#x27;s worth knowing right now|What's worth knowing right now/.test(r.body), 'the Hotlist landing page renders');
+check(/The hottest right now/.test(text(r.body)) && /Hot deals/.test(text(r.body)) && /Hotlist picks/.test(text(r.body)) && /On the Hotlist this week/.test(text(r.body)) && /Hotlist business/.test(text(r.body)), 'every curated section is there');
+check(links(r.body, /href="\/hotlist\/([a-z0-9-]+)"/g).length >= 6, 'items link to their pages');
+r = await get('/hotlist?view=deals&sort=ending'); check(r.status === 200 && /noindex/.test(robots(r.body) ?? '') && /Hot Deal|Limited Drop|Local Exclusive/.test(r.body), 'a filtered view is noindex and lists deals');
+r = await get('/hotlist?q=zzzzqq'); check(/Nothing matches/.test(text(r.body)), 'a search with no results has an empty state');
+r = await get('/hotlist/half-day-guided-fly-fishing');
+check(r.status === 200 && /How to redeem/.test(text(r.body)) && /application\/ld\+json/.test(r.body) && /"@type":"Offer"/.test(r.body), 'a deal page shows redemption steps and Offer markup');
+for (const p of ['/hotlist/nope', '/hotlist/Bad%20Slug']) { r = await get(p); check(r.status === 404, `${p} is a 404`); }
 
 // ---------- articles ----------
 r = await get('/articles');
@@ -64,6 +67,6 @@ check(r.status === 200 && /This weekend/.test(text(r.body)) && /Guides and ideas
 
 // ---------- sitemap ----------
 r = await get('/sitemap.xml'); const locs = links(r.body, /<loc>([^<]*)<\/loc>/g);
-check(['/events', '/deals', '/articles', '/things-to-do', '/events/sample-pumpkin-fest', '/articles/fall-hiking-guide'].every((p) => locs.some((l) => l.endsWith(p))) && !locs.some((l) => l.includes('owner-marketing')), 'the sitemap lists the new pages and none that are hidden');
+check(['/events', '/hotlist', '/hotlist/half-day-guided-fly-fishing', '/articles', '/things-to-do', '/events/sample-pumpkin-fest', '/articles/fall-hiking-guide'].every((p) => locs.some((l) => l.endsWith(p))) && !locs.some((l) => l.includes('owner-marketing')), 'the sitemap lists the new pages and none that are hidden');
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

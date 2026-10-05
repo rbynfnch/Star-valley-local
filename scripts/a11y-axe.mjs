@@ -15,9 +15,9 @@ const port = process.argv[2] ?? '3101';
 const root = `http://star-valley.localhost:${port}`;
 const fx = JSON.parse(readFileSync('.fixtures/directory.json', 'utf8'));
 const biz = fx.businesses.find((b) => b.slug === 'sample-valley-plumbing') ?? fx.businesses[0];
-const PUBLIC = ['/', '/businesses', '/businesses?q=plumb', '/categories/plumbing', `/business/${biz.slug}`, '/business/sample-creekside-cafe', '/events', '/deals', '/articles', '/things-to-do', '/pricing',
+const PUBLIC = ['/', '/businesses', '/businesses?q=plumb', '/categories/plumbing', `/business/${biz.slug}`, '/business/sample-creekside-cafe', '/events', '/hotlist', '/hotlist?view=deals', '/hotlist/half-day-guided-fly-fishing', '/hotlist/pie-of-the-week', '/hotlist/submit', '/articles', '/things-to-do', '/pricing',
   '/list-your-business', '/list-your-business?claim=sample-smile-dental', '/suggest-business', '/suggest-update', '/submit-event', '/account/sign-in', '/account/sign-up', '/styleguide', '/admin/login'];
-const ADMIN = ['/admin', '/admin/businesses', `/admin/businesses/${BIZ}`, `/admin/businesses/${BIZ}/edit`, `/admin/businesses/${BIZ}/content`, '/admin/import', '/admin/moderation', '/admin/placements', '/admin/email', '/admin/content', '/admin/content/articles', '/admin/content/events', '/admin/content/deals', '/admin/content/articles/new', '/admin/content/events/new'];
+const ADMIN = ['/admin', '/admin/businesses', `/admin/businesses/${BIZ}`, `/admin/businesses/${BIZ}/edit`, `/admin/businesses/${BIZ}/content`, '/admin/import', '/admin/moderation', '/admin/placements', '/admin/email', '/admin/content', '/admin/content/articles', '/admin/content/events', '/admin/content/deals', '/admin/hotlist/new', '/admin/content/articles/new', '/admin/content/events/new'];
 state.detail = freshDetail();
 const mock = await startMock();
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--disable-gpu'] });
