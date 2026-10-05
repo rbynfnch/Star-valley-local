@@ -40,6 +40,7 @@ export const state = {
   content: null,      // business_content payload (see freshContent)
   storage: {},        // uploaded object path -> { type, size, auth }
   storageRemoved: [], // object paths removed through the storage API
+  email: { batches: [], completes: [], fails: [], suppressions: [], maintenance: 0, maintenanceFails: false, queueView: null, retries: [], retryError: null, postmark: [], postmarkReplies: [] },
 };
 export const freshDetail = () => ({
   business: { id: BIZ, slug: 'alpha-plumbing', name: 'Alpha Plumbing', status: 'unclaimed', community: 'Thayne', category: 'Plumbing', home_community_id: '3f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', primary_category_id: '4f2a8c1e-9b7d-4e61-8a0f-1c2d3e4f5a6b', address_line1: '1 Main St', address_line2: null, city: 'Thayne', state: 'WY', postal_code: '83127',
@@ -63,6 +64,15 @@ export const freshContent = () => ({
   faqs: [{ question: 'Free quotes?', answer: 'Yes.' }], community_ids: [], category_ids: [],
   deals: [{ id: 'd0000000-0000-4000-8000-000000000001', title: '10% off first visit', description: null, terms: null, discount_type: 'percent', discount_value: 10, status: 'published', starts_at: '2026-07-01T06:00:00Z', ends_at: '2026-12-01T07:00:00Z' }],
   photos: [{ id: 'f0000000-0000-4000-8000-000000000001', role: 'cover', caption: 'The shop', alt: 'Front of the shop', bucket: 'media', path: `a0000000-0000-4000-8000-000000000001/${BIZ}/cover.png`, width: 800, height: 600 }],
+});
+
+export const freshEmailQueue = () => ({
+  counts: { queued: 2, failed: 1, sent_7d: 14, cancelled_7d: 3 },
+  rows: [
+    { id: 'e0000000-0000-4000-8000-000000000001', kind: 'placement_renewal_reminder', status: 'failed', recipient_email: 'pat@alpha.example', business_id: BIZ, business_name: 'Alpha Plumbing', attempts: 5, last_error: 'postmark 422 #406: Inactive recipient <b>x</b>', created_at: '2026-10-01T15:00:00Z', send_after: '2026-10-01T15:00:00Z', sent_at: null },
+    { id: 'e0000000-0000-4000-8000-000000000002', kind: 'verification_reminder', status: 'queued', recipient_email: 'long.address.that.keeps.going.and.going@a-very-long-domain-name-for-layout-testing.example', business_id: BIZ, business_name: 'Alpha Plumbing', attempts: 0, last_error: null, created_at: '2026-10-03T15:00:00Z', send_after: '2026-10-06T15:00:00Z', sent_at: null },
+    { id: 'e0000000-0000-4000-8000-000000000003', kind: 'listing_renewal_reminder', status: 'sent', recipient_email: 'sam@bravo.example', business_id: BIZ, business_name: 'Bravo Cafe', attempts: 1, last_error: null, created_at: '2026-09-20T15:00:00Z', send_after: '2026-09-20T15:00:00Z', sent_at: '2026-09-20T15:01:00Z' },
+  ],
 });
 
 export const SUB_IDS = { update: '11111111-1111-4111-8111-111111111111', business: '22222222-2222-4222-8222-222222222222', event: '33333333-3333-4333-8333-333333333333', xss: '44444444-4444-4444-8444-444444444444' };
@@ -177,6 +187,31 @@ export function startMock() {
         return json(200, 'new-id');
       }
 
+
+      // ---- email worker (service role) and the staff queue view
+      if (rpc && /^(email_claim_batch|email_complete|email_fail|email_run_maintenance|record_email_suppression)$/.test(rpc)) {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        const e = state.email;
+        if (rpc === 'email_claim_batch') return json(200, e.batches.shift() ?? []);
+        if (rpc === 'email_complete') { e.completes.push(args); return json(200, null); }
+        if (rpc === 'email_fail') { e.fails.push(args); return json(200, null); }
+        if (rpc === 'email_run_maintenance') { e.maintenance++; return e.maintenanceFails ? json(500, { message: 'boom' }) : json(200, { notifications_queued: 0 }); }
+        if (rpc === 'record_email_suppression') { e.suppressions.push(args); return state.failNextSuppression ? json(500, { message: 'boom' }) : json(200, 1); }
+      }
+      if (rpc === 'admin_email_queue') { if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' }); return json(200, state.email.queueView); }
+      if (rpc === 'retry_notification') {
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        if (state.email.retryError) return json(400, { code: '22023', message: state.email.retryError });
+        state.email.retries.push(args.p_id); const r = state.email.queueView.rows.find((x) => x.id === args.p_id); if (r) { r.status = 'queued'; r.attempts = 0; r.last_error = null; state.email.queueView.counts.failed--; } return json(200, null);
+      }
+      // ---- Postmark's send endpoint
+      if (req.method === 'POST' && req.url === '/email') {
+        let b = {}; try { b = JSON.parse(body); } catch { /* ignore */ }
+        state.email.postmark.push({ token: req.headers['x-postmark-server-token'], body: b });
+        const rep = state.email.postmarkReplies.shift();
+        if (rep) return json(rep.status, rep.body);
+        return json(200, { ErrorCode: 0, Message: 'OK', MessageID: 'pm-' + state.email.postmark.length, To: b.To });
+      }
       // ---- content editor (staff only; the real rules are tested in SQL, the mock only stores what it is sent)
       if (rpc && /^(business_content|set_business_(hours|services|links|faqs|areas)|save_deal|delete_deal|add_business_photo|update_business_photo|delete_business_photo|reorder_business_photos)$/.test(rpc)) {
         if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });

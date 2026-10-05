@@ -23,6 +23,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<"/admin">)
             {areas.includes("dashboard") && <li><Link href="/admin" className="underline-offset-4 hover:underline">Dashboard</Link></li>}
             {areas.includes("placements") && <li><Link href="/admin/placements" className="underline-offset-4 hover:underline">Placements</Link></li>}
             {areas.includes("import") && <li><Link href="/admin/import" className="underline-offset-4 hover:underline">Import</Link></li>}
+            {areas.includes("crm") && <li><Link href="/admin/email" className="underline-offset-4 hover:underline">Email</Link></li>}
             {areas.includes("moderation") && <li><Link href="/admin/moderation" className="underline-offset-4 hover:underline">Moderation</Link></li>}
             {areas.includes("businesses") && <li><Link href="/admin/businesses" className="underline-offset-4 hover:underline">Businesses</Link></li>}
           </ul>
