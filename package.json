@@ -31,7 +31,8 @@
     "e2e:email": "node scripts/e2e-email.mjs",
     "e2e:editorial": "node scripts/e2e-editorial.mjs",
     "e2e:tracking": "node scripts/e2e-tracking.mjs",
-    "e2e:pricing": "node scripts/e2e-pricing.mjs"
+    "e2e:pricing": "node scripts/e2e-pricing.mjs",
+    "e2e:claim-invite": "node scripts/e2e-claim-invite.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

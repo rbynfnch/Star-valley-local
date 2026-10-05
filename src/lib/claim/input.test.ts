@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { maskPhone, parseCode, parseSlug, smsBody, verifyMessage } from "./input.ts";
+import { inviteSmsBody, maskPhone, parseCode, parseSlug, smsBody, verifyMessage } from "./input.ts";
 
 test("parseCode accepts six digits with spaces or hyphens, nothing else", () => {
   for (const [i, o] of [["123456", "123456"], [" 123 456 ", "123456"], ["123-456", "123456"]]) assert.equal(parseCode(i), o);
@@ -45,4 +45,9 @@ test("masks from claim_options: last four digits and a first-letter email hint, 
 test("emailLinkMessage talks about links, not codes", () => {
   assert.equal(emailLinkMessage({ result: "verified" }).ok, true);
   for (const r of ["expired", "rejected", "cancelled", "already_claimed", "wrong", "weird"]) { const m = emailLinkMessage({ result: r }); assert.equal(m.ok, false); assert.equal(m.done, true); assert.doesNotMatch(m.text, /code/i); }
+});
+
+test("invite text carries the link, the lifetime and an opt-out line, and truncates a long business name", () => {
+  const b = inviteSmsBody("Star Valley Local", "A".repeat(80), "https://x.test/c?c=1&t=2", 7);
+  assert.match(b, /https:\/\/x\.test\/c\?c=1&t=2/); assert.match(b, /valid 7 days/); assert.match(b, /Ignore this/); assert.ok(b.includes("…")); assert.ok(b.length < 230);
 });

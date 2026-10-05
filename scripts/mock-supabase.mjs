@@ -214,6 +214,42 @@ export function startMock() {
         if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
         return json(200, state.blockedEmail === args.p_email);
       }
+      if (rpc === 'claim_invite') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        if (state.inviteError) return json(state.inviteError.status, state.inviteError.body);
+        const id = crypto.randomUUID(), email = args.p_method === 'email_link', secret = crypto.randomBytes(32).toString('hex');
+        state.claims[id] = { user: null, invite: true, secret, attempts: 0, status: 'pending', method: args.p_method, expired: false };
+        return json(200, { claim_id: id, secret, destination: email ? (state.emailDestination ?? 'owner@alpha.example') : '+1' + (state.destinationDigits ?? '3075550111'), method: args.p_method, business_name: 'Alpha Plumbing', expires_at: new Date(Date.now() + 7 * 86400000).toISOString() });
+      }
+      if (rpc === 'claim_invite_preview') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        const c = state.claims[args.p_claim];
+        if (!c || !c.invite || c.user || c.secret !== args.p_secret) return json(200, null);
+        return json(200, { business_name: 'Alpha Plumbing', slug: 'alpha-plumbing', status: c.status, method: c.method, expires_at: new Date().toISOString(), expired: c.expired, invite: true });
+      }
+      if (rpc === 'claim_invite_sent') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        (state.inviteSent ??= []).push(args.p_claim); return json(200, null);
+      }
+      if (rpc === 'claim_verify_invite') {
+        state.rpc.at(-1).key = tok;
+        const c = state.claims[args.p_claim];
+        if (!c) return json(404, { code: 'P0002', message: 'claim not found' });
+        if (c.invite && !c.user) {
+          if (c.expired) return json(200, { result: 'expired' });
+          if (args.p_secret !== c.secret) { c.attempts++; return json(200, { result: 'wrong', attempts_left: 5 - c.attempts }); }
+          c.user = args.p_user;
+        }
+        if (c.user !== args.p_user) return json(404, { code: 'P0002', message: 'claim not found' });
+        if (c.expired) return json(200, { result: 'expired' });
+        if (c.status === 'verified') return json(200, { result: 'verified', already: true });
+        if (args.p_secret === c.secret) { c.status = 'verified'; return json(200, { result: 'verified', level: 'green' }); }
+        c.attempts++; return json(200, c.attempts >= 5 ? { result: 'rejected' } : { result: 'wrong', attempts_left: 5 - c.attempts });
+      }
+      if (rpc === 'admin_claim_overview') {
+        if (!u?.role || u.role === 'editor') return json(403, { code: '42501', message: 'sales staff only' });
+        return json(200, state.claimOverview ?? { status: 'unclaimed', owned: false, phone_last4: '0102', email_hint: 'p•••@alpha.example', invites: [] });
+      }
       if (rpc === 'claim_verify') {
         state.rpc.at(-1).key = tok;
         const c = state.claims[args.p_claim];

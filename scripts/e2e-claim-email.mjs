@@ -64,15 +64,15 @@ try {
   check(m.body.TrackOpens === false && m.body.TrackLinks === 'None', 'no tracking on the link');
 
   // ---------- opening the link does nothing by itself ----------
-  const verifiesBefore = calls('claim_verify').length;
+  const verifiesBefore = calls('claim_verify_invite').length;
   const p2 = await as('tok-owner'); await p2.goto(link);
   await p2.getByRole('button', { name: 'Yes, I manage this business' }).waitFor();
-  check(calls('claim_verify').length === verifiesBefore, 'merely opening the link does not verify (mail scanners open links)');
+  check(calls('claim_verify_invite').length === verifiesBefore, 'merely opening the link does not verify (mail scanners open links)');
   check(/Sample Smile Dental/.test(await main(p2)) && /Signed in as/.test(await main(p2)), 'it shows which business and which account');
   check((await p2.locator('meta[name="referrer"]').getAttribute('content')) === 'no-referrer' && /noindex/.test((await p2.locator('meta[name="robots"]').getAttribute('content')) ?? ''), 'the page keeps the token out of Referer headers and search results');
   await p2.getByRole('button', { name: 'Yes, I manage this business' }).click();
   await p2.getByRole('heading', { name: "You're verified" }).waitFor();
-  const v = calls('claim_verify').at(-1)?.body;
+  const v = calls('claim_verify_invite').at(-1)?.body;
   check(v?.p_user === 'u-owner' && v.p_secret === lm?.[2] && v.p_claim === lm?.[1], 'pressing the button verifies as the signed-in user with the token from the link');
   check((await p2.getByRole('link', { name: 'View your listing' }).getAttribute('href')) === `/business/${dental.slug}`, 'and offers a link to the listing');
   await p2.reload(); check(/already verified/.test(await main(p2)), 'opening the link again says it is already verified');
@@ -92,11 +92,11 @@ try {
     await bad.goto(`${root}/list-your-business/confirm${q}`);
     check(/That link is not valid/.test(await main(bad)), `a malformed link is refused (${q.slice(0, 18) || 'empty'})`);
   }
-  const before = calls('claim_verify').length;
+  const before = calls('claim_verify_invite').length;
   await bad.goto(`${root}/list-your-business/confirm?c=${link2.match(/c=([0-9a-f-]{36})/)[1]}&t=${'b'.repeat(64)}`);
   await bad.getByRole('button', { name: 'Yes, I manage this business' }).click();
   await bad.getByRole('alert').filter({ hasText: /./ }).and(bad.locator('main *')).waitFor();
-  check(calls('claim_verify').length === before + 1 && state.claims[link2.match(/c=([0-9a-f-]{36})/)[1]].status === 'pending', 'a wrong token reaches the database as a wrong attempt and does not verify');
+  check(calls('claim_verify_invite').length === before + 1 && state.claims[link2.match(/c=([0-9a-f-]{36})/)[1]].status === 'pending', 'a wrong token reaches the database as a wrong attempt and does not verify');
 
   // ---------- expired ----------
   const id2 = link2.match(/c=([0-9a-f-]{36})/)[1]; state.claims[id2].expired = true;

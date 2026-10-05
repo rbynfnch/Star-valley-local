@@ -21,3 +21,8 @@ test("the link text says what pressing does without exposing the secret outside 
   const r = renderClaimEmail({ ...base, link: "https://svl.example/x?t=SECRET" });
   assert.equal((r.text.match(/SECRET/g) ?? []).length, 1); assert.equal((r.html.match(/SECRET/g) ?? []).length, 1);
 });
+test("an invite email says we are offering the listing and lasts days", () => {
+  const r = renderClaimEmail({ ...base, minutes: 7 * 1440, invite: true });
+  assert.match(r.text, /offering you the chance to claim/); assert.match(r.text, /works for 7 days/); assert.match(r.text, /do not manage this business/);
+  assert.doesNotMatch(r.text, /Someone asked/);
+});

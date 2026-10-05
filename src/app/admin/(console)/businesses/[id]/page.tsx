@@ -10,6 +10,7 @@ import { telHref } from "@/lib/format";
 import { activityView, type Activity } from "@/lib/admin/activity-view";
 import { EntryForm, StageForm } from "./Forms";
 import { StatusForm } from "./StatusForm";
+import { ClaimLinkCard, type ClaimOverview } from "./ClaimLinkCard";
 import { ActivateListingForm, ActivatePlacementForm, EndButton, type Product } from "@/components/admin/BillingForms";
 import { activateListing, activatePlacement, addToWaitlist, endListing, endPlacement } from "../../placements/actions";
 
@@ -48,6 +49,8 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
   const d = data as Detail;
   const act = await supabase.rpc("admin_business_activity", { p_tenant: staff.tenant.id, p_business: id, p_days: 30 });      // a failure here only hides the card
   const perf = act.error || !act.data ? null : activityView(act.data as Activity);
+  const co = await supabase.rpc("admin_claim_overview", { p_tenant: staff.tenant.id, p_business: id });      // a failure here only hides the card
+  const claimInfo = co.error || !co.data ? null : (co.data as ClaimOverview);
   const [cats, coms, prods] = staff.role === "admin" ? await Promise.all([
     supabase.from("categories").select("id,name").eq("tenant_id", staff.tenant.id).eq("is_active", true).order("sort_order"),
     supabase.from("communities").select("id,name").eq("tenant_id", staff.tenant.id).order("sort_order"),
@@ -114,6 +117,11 @@ export default async function BusinessDetail({ params, searchParams }: PageProps
         </div>
 
         <div className="min-w-0 space-y-4">
+          {claimInfo && (
+            <Card title="Claim link">
+              <ClaimLinkCard business={b.id} overview={claimInfo} stamp={Object.fromEntries(claimInfo.invites.map((i, n) => [n, formatStamp(i.created_at, tz)]))} />
+            </Card>
+          )}
           <Card title="Listing performance (30 days)">
             {!perf ? <Empty>Not available right now.</Empty> : perf.empty ? <Empty>Nothing recorded yet. Views and taps are counted from the day tracking started; staff, owners and bots are not counted.</Empty> : (
               <>

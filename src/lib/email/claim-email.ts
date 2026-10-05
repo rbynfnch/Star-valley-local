@@ -2,13 +2,17 @@ import { escapeHtml } from "./templates.ts";
 
 // The "confirm you manage this business" email. Sent straight from the claim action (never through the outbox), because the
 // link carries a one-time secret that must not be stored anywhere readable.
-export interface ClaimEmailInput { tenantName: string; mailingAddress: string | null; contactEmail: string | null; businessName: string; link: string; minutes: number }
+export interface ClaimEmailInput { tenantName: string; mailingAddress: string | null; contactEmail: string | null; businessName: string; link: string; minutes: number; /** sent by our staff rather than requested by the claimant */ invite?: boolean }
 const clean = (s: string, max: number) => s.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
 
 export function renderClaimEmail(i: ClaimEmailInput): { subject: string; text: string; html: string } {
   const tenant = clean(i.tenantName, 80), biz = clean(i.businessName, 120);
-  const when = i.minutes % 60 === 0 ? `${i.minutes / 60} hour${i.minutes === 60 ? "" : "s"}` : `${i.minutes} minutes`;
-  const paras = [
+  const when = i.minutes % 1440 === 0 ? `${i.minutes / 1440} day${i.minutes === 1440 ? "" : "s"}` : i.minutes % 60 === 0 ? `${i.minutes / 60} hour${i.minutes === 60 ? "" : "s"}` : `${i.minutes} minutes`;
+  const paras = i.invite ? [
+    `${tenant} has a free listing for ${biz}, and we are offering you the chance to claim it. If you manage this business, press the button below. You will sign in or create an account, then confirm.`,
+    `The link works for ${when}. Opening it changes nothing by itself; you will be asked to confirm.`,
+    "If you do not manage this business, ignore this email and nobody gets access.",
+  ] : [
     `Someone asked to claim ${biz} on ${tenant} and chose to confirm it by email. If that was you, press the button below, signed in to the account you asked from.`,
     `The link works for ${when}. Opening it changes nothing by itself; you will be asked to confirm.`,
     "If you did not ask for this, ignore this email and nobody gets access.",

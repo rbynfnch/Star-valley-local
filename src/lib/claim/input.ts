@@ -54,3 +54,9 @@ export function emailLinkMessage(r: VerifyResult): { done: boolean; ok: boolean;
     default: return { done: true, ok: false, text: "That link did not work. Ask for a new one." };
   }
 }
+
+/** Text message carrying a staff-issued claim link. A verification message (transactional), never marketing. */
+export function inviteSmsBody(tenantName: string, businessName: string, link: string, days: number): string {
+  const name = businessName.length > 40 ? businessName.slice(0, 39).trimEnd() + "…" : businessName;
+  return `${tenantName}: confirm you manage ${name}: ${link} (valid ${days} days). Not you? Ignore this.`;
+}

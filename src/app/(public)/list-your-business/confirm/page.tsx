@@ -27,9 +27,13 @@ export default async function ConfirmClaim({ searchParams }: PageProps<"/list-yo
   if (!isUuid(claim) || !token) {
     body = <Box>That link is not valid. Go to the business&apos;s page and choose &ldquo;Claim this business&rdquo; to ask for a new one.</Box>;
   } else if (!user) {
+    const { data: ip } = await createServiceClient().rpc("claim_invite_preview", { p_claim: claim, p_secret: token });
+    const inv = ip as Preview | null;
     body = (
       <Box>
-        <p>Sign in with the account you used to ask for this link. It only works for that account.</p>
+        {inv && inv.status === "pending" && !inv.expired
+          ? <p>We sent this link to the contact on file for <strong className="[overflow-wrap:anywhere]">{inv.business_name}</strong>. Sign in or create a free account, then confirm that you manage the business.</p>
+          : <p>Sign in with the account you used to ask for this link. It only works for that account.</p>}
         <p className="mt-4 flex flex-wrap gap-4">
           <Link href={`/account/sign-in?next=${encodeURIComponent(here)}`} className="rounded-button bg-brand px-5 py-2 font-semibold text-brand-contrast hover:bg-brand-hover">Sign in</Link>
           <Link href={`/account/sign-up?next=${encodeURIComponent(here)}`} className="rounded-button border border-slate-600 px-5 py-2 font-semibold text-text">Create an account</Link>
@@ -38,8 +42,12 @@ export default async function ConfirmClaim({ searchParams }: PageProps<"/list-yo
     );
   } else {
     const { data } = await createServiceClient().rpc("claim_preview", { p_claim: claim, p_user: user.id });
-    const pv = data as Preview | null;
-    if (!pv || pv.method !== "email_link") {
+    let pv = data as Preview | null;
+    if (!pv) {   // a link our staff sent has no account behind it yet: the secret in the link proves who is holding it
+      const { data: ip } = await createServiceClient().rpc("claim_invite_preview", { p_claim: claim, p_secret: token });
+      pv = ip as Preview | null;
+    }
+    if (!pv) {
       body = (
         <Box>
           <p>This link is not for the account you are signed in with ({user.email}), or it is no longer valid.</p>
