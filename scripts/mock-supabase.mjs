@@ -160,13 +160,32 @@ export function startMock() {
       if (rpc === 'claim_start') {
         state.rpc.at(-1).key = tok;
         if (state.claimStartError) return json(state.claimStartError.status, state.claimStartError.body);
-        const id = crypto.randomUUID(); state.claims[id] = { user: args.p_user, secret: state.nextSecret, attempts: 0, status: 'pending' };
-        return json(200, { claim_id: id, secret: state.nextSecret, destination: '+1' + (state.destinationDigits ?? '3075550111'), method: 'sms_code', expires_at: new Date(Date.now() + 600000).toISOString() });
+        const id = crypto.randomUUID(), email = args.p_method === 'email_link';
+        const secret = email ? (state.nextToken ?? crypto.randomBytes(32).toString('hex')) : state.nextSecret;
+        state.claims[id] = { user: args.p_user, secret, attempts: 0, status: 'pending', method: args.p_method ?? 'sms_code', expired: false };
+        return json(200, { claim_id: id, secret, destination: email ? (state.emailDestination ?? 'owner@alpha.example') : '+1' + (state.destinationDigits ?? '3075550111'), method: args.p_method ?? 'sms_code', expires_at: new Date(Date.now() + (email ? 3600000 : 600000)).toISOString() });
+      }
+      if (rpc === 'claim_options') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        if (state.optionsNull) return json(200, null);
+        return json(200, { phone_last4: state.noPhone ? null : (state.destinationDigits ?? '3075550111').slice(-4), email_hint: state.emailHint ?? null });
+      }
+      if (rpc === 'claim_preview') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        const c = state.claims[args.p_claim];
+        if (!c || c.user !== args.p_user) return json(200, null);
+        return json(200, { business_name: state.claimBiz?.name ?? 'Sample Smile Dental', slug: state.claimBiz?.slug ?? 'sample-smile-dental', status: c.status, method: c.method, expires_at: new Date().toISOString(), expired: c.expired });
+      }
+      if (rpc === 'email_is_blocked') {
+        if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return json(403, { code: '42501', message: 'permission denied' });
+        return json(200, state.blockedEmail === args.p_email);
       }
       if (rpc === 'claim_verify') {
         state.rpc.at(-1).key = tok;
         const c = state.claims[args.p_claim];
         if (!c || c.user !== args.p_user) return json(404, { code: 'P0002', message: 'claim not found' });
+        if (c.expired) return json(200, { result: 'expired' });
+        if (c.status === 'verified') return json(200, { result: 'verified', already: true });
         if (args.p_secret === c.secret) { c.status = 'verified'; return json(200, { result: 'verified', level: 'green' }); }
         c.attempts++; return json(200, c.attempts >= 5 ? { result: 'rejected' } : { result: 'wrong', attempts_left: 5 - c.attempts });
       }

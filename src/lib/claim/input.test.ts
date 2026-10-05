@@ -25,3 +25,24 @@ test("verifyMessage covers every database result", () => {
   assert.match(verifyMessage({ result: "wrong", attempts_left: 1 }).text, /1 try left/);
   for (const r of ["expired", "rejected", "already_claimed", "cancelled", "anything-else"]) { const m = verifyMessage({ result: r }); assert.ok(m.done && !m.ok, r); }
 });
+
+import { emailLinkMessage, maskPhoneLast4, parseClaimMethod, parseToken, safeHint } from "./input.ts";
+test("parseToken accepts only 64 lowercase hex characters", () => {
+  const t = "a".repeat(64);
+  assert.equal(parseToken(t), t);
+  for (const bad of [undefined, null, 5, "", "A".repeat(64), "a".repeat(63), "a".repeat(65), "g".repeat(64), t + "\n", " " + t, ["a".repeat(64)]]) assert.equal(parseToken(bad), null);
+});
+test("parseClaimMethod defaults to text and accepts only email_link as the other choice", () => {
+  assert.equal(parseClaimMethod("email_link"), "email_link");
+  for (const v of ["sms_code", "admin_assisted", "", null, undefined, 1, "EMAIL_LINK"]) assert.equal(parseClaimMethod(v), "sms_code");
+});
+test("masks from claim_options: last four digits and a first-letter email hint, nothing else passes", () => {
+  assert.equal(maskPhoneLast4("0701"), "(•••) •••-0701");
+  for (const bad of [null, undefined, "", "701", "07011", "abcd", "<b>1</b>"]) assert.equal(maskPhoneLast4(bad), null);
+  assert.equal(safeHint("O•••@cle.example"), "O•••@cle.example");
+  for (const bad of [null, "owner@cle.example", "O•••@", "O•••@a b", 5, "O•••@" + "x".repeat(200)]) assert.equal(safeHint(bad), null);
+});
+test("emailLinkMessage talks about links, not codes", () => {
+  assert.equal(emailLinkMessage({ result: "verified" }).ok, true);
+  for (const r of ["expired", "rejected", "cancelled", "already_claimed", "wrong", "weird"]) { const m = emailLinkMessage({ result: r }); assert.equal(m.ok, false); assert.equal(m.done, true); assert.doesNotMatch(m.text, /code/i); }
+});

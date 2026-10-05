@@ -32,6 +32,7 @@ npm run dev                   # http://localhost:3000   (styleguide: /styleguide
 | `npm run smoke:admin` | admin guard end to end against a **mock** of Supabase auth/RPC (not real Supabase). Add `--layout` to also run the real-browser layout check on the admin pages. Start the app with `NEXT_PUBLIC_SUPABASE_URL=http://localhost:54399 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon npm run dev` first |
 | `npm run e2e:admin` | drives the business-detail forms in a real browser (Playwright, installed globally, not a project dependency) against the same Supabase **mock**; same server setup as `smoke:admin` |
 | `npm run e2e:claim` | the public claim flow (sign in, text a code, verify, failure paths) in a real browser against a Supabase + Twilio **mock**. Start the app with the env vars listed at the top of `scripts/e2e-claim.mjs` |
+| `npm run e2e:claim-email` | claim by emailed link (choice of method, email send, confirm page, wrong account, expired, blocked address) in a real browser against the Supabase + Postmark **mock**; needs the Postmark env from the `e2e:email` header |
 | `npm run e2e:submissions` | the three public forms (Suggest an Update / Suggest a Business / Submit an Event) in a real browser against the Supabase **mock** |
 | `npm run e2e:moderation` | the admin moderation queue in a real browser against the same mock (roles, approve/apply/duplicate/reject/spam, errors) |
 | `npm run e2e:import` | the admin CSV import wizard (upload, column mapping, check, decisions, commit) in a real browser against the Supabase **mock** |

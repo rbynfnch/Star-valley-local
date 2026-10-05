@@ -33,3 +33,24 @@ export function verifyMessage(r: VerifyResult): { done: boolean; ok: boolean; te
     default: return { done: true, ok: false, text: "That did not work. Ask for a new code." };
   }
 }
+
+/** The one-time token in an emailed claim link: 64 lowercase hex characters, nothing else ever reaches the database. */
+export const parseToken = (v: unknown): string | null => (typeof v === "string" && /^[0-9a-f]{64}$/.test(v) ? v : null);
+export const parseClaimMethod = (v: unknown): "sms_code" | "email_link" => (v === "email_link" ? "email_link" : "sms_code");
+
+/** What claim_options hands the page: masked hints only. */
+export interface ClaimOptions { phone_last4: string | null; email_hint: string | null }
+export const maskPhoneLast4 = (last4: string | null | undefined): string | null => (typeof last4 === "string" && /^\d{4}$/.test(last4) ? `(•••) •••-${last4}` : null);
+export const safeHint = (v: unknown): string | null => (typeof v === "string" && /^[^\s@]•••@[^\s@]+$/.test(v) && v.length <= 120 ? v : null);
+
+/** "a•••@alpha.example" -> shown as is; used in "we emailed a link to …". */
+export function emailLinkMessage(r: VerifyResult): { done: boolean; ok: boolean; text: string } {
+  switch (r.result) {
+    case "verified": return { done: true, ok: true, text: "You're verified." };
+    case "expired": return { done: true, ok: false, text: "That link has expired. Go back to the business page and ask for a new one." };
+    case "rejected": return { done: true, ok: false, text: "That link cannot be used any more. Ask for a new one in a little while." };
+    case "already_claimed":
+    case "cancelled": return { done: true, ok: false, text: "This business was just claimed by someone else, or a newer link replaced this one. Ask for a new link if you still need one." };
+    default: return { done: true, ok: false, text: "That link did not work. Ask for a new one." };
+  }
+}

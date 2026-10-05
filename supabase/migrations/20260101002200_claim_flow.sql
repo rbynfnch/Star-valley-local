@@ -8,14 +8,15 @@
 --               existing triggers (never set here).
 --
 -- Limits (all enforced here): only an unclaimed, published business can be claimed; <=3 starts per business per hour;
--- <=5 per user per day; <=300 per tenant per day (SMS-pumping guard); one new code per 60 s per business; a code lasts
--- 10 minutes and allows 5 wrong attempts (the 5th wrong attempt rejects the claim).
+-- <=5 per user per day; <=300 per tenant per day (SMS-pumping guard); one new code per 60 s per business; a text code lasts
+-- 10 minutes (an emailed link 1 hour) and allows 5 wrong attempts (the 5th wrong attempt rejects the claim).
 create function public.claim_start(p_tenant uuid, p_business uuid, p_user uuid, p_method public.claim_method default 'sms_code') returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare
   b public.businesses%rowtype; v_dest text; v_secret text; v_id uuid := gen_random_uuid();
-  v_ttl interval := interval '10 minutes';
+  v_ttl interval;
 begin
+  v_ttl := case p_method when 'email_link' then interval '1 hour' else interval '10 minutes' end;     -- email can be slow; a text code is read at once
   if p_method not in ('sms_code', 'email_link') then raise exception 'unsupported claim method' using errcode = '22023'; end if;
   if p_user is null or not exists (select 1 from auth.users where id = p_user) then raise exception 'sign in first' using errcode = '28000'; end if;
   select * into b from public.businesses where id = p_business and tenant_id = p_tenant for update;
@@ -24,6 +25,7 @@ begin
     raise exception 'this business has already been claimed' using errcode = '22023';
   end if;
   v_dest := case p_method when 'sms_code' then nullif(regexp_replace(coalesce(b.phone, ''), '\D', '', 'g'), '') else nullif(btrim(coalesce(b.email, '')), '') end;
+  if p_method = 'email_link' and v_dest !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' then v_dest := null; end if;      -- a malformed address counts as none
   if v_dest is null then raise exception 'there is no % on file for this business', case p_method when 'sms_code' then 'phone number' else 'email address' end using errcode = '22023'; end if;
   if p_method = 'sms_code' and length(v_dest) = 10 then v_dest := '+1' || v_dest;
   elsif p_method = 'sms_code' and length(v_dest) = 11 and left(v_dest, 1) = '1' then v_dest := '+' || v_dest;

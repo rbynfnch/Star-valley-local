@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDirectoryData } from "@/lib/directory/data";
-import { maskPhone, parseSlug } from "@/lib/claim/input";
+import { maskPhoneLast4, parseSlug, safeHint, type ClaimOptions } from "@/lib/claim/input";
+import { createServiceClient } from "@/lib/supabase/service";
 import { authConfigured, createUserClient } from "@/lib/supabase/server";
 import { getTenant } from "@/lib/tenant/resolve";
 import { ClaimForm } from "./ClaimForm";
@@ -33,13 +34,18 @@ export default async function ListYourBusiness({ searchParams }: PageProps<"/lis
 
   const user = authConfigured() ? (await (await createUserClient()).auth.getUser()).data.user : null;
   const here = `/list-your-business?claim=${encodeURIComponent(slug)}`;
-  const masked = maskPhone(b.phone);
+  // What can be offered is read with the service role (a listing's email is not public on Free listings) and arrives masked.
+  let opts: ClaimOptions | null = null;
+  if (b.status === "unclaimed") {
+    try { const { data } = await createServiceClient().rpc("claim_options", { p_tenant: tenant.id, p_business: b.id }); opts = (data as ClaimOptions | null) ?? null; } catch { opts = null; }
+  }
+  const masked = maskPhoneLast4(opts?.phone_last4), emailHint = safeHint(opts?.email_hint);
 
   let body: React.ReactNode;
   if (b.status !== "unclaimed") {
     body = <p className="rounded-card bg-surface-card p-5 text-text-body shadow-card">This business has already been claimed. <Link href={`/business/${slug}`} className="font-semibold text-link underline">Back to the listing</Link></p>;
-  } else if (!masked) {
-    body = <p className="rounded-card bg-surface-card p-5 text-text-body shadow-card">We can&apos;t verify this business online yet because there&apos;s no phone number on its listing. <Link href={`/business/${slug}`} className="font-semibold text-link underline">Back to the listing</Link></p>;
+  } else if (!masked && !emailHint) {
+    body = <p className="rounded-card bg-surface-card p-5 text-text-body shadow-card">We can&apos;t verify this business online yet because there&apos;s no phone number or email address on its listing. <Link href={`/business/${slug}`} className="font-semibold text-link underline">Back to the listing</Link></p>;
   } else if (!user) {
     body = (
       <div className="rounded-card bg-surface-card p-5 shadow-card">
@@ -54,7 +60,7 @@ export default async function ListYourBusiness({ searchParams }: PageProps<"/lis
     body = (
       <>
         <p className="mb-3 text-sm text-text-muted">Signed in as {user.email}. <form action={signOutAction} className="inline"><button className="font-medium text-link underline">Not you?</button></form></p>
-        <ClaimForm slug={slug} businessName={b.name} maskedPhone={masked} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
+        <ClaimForm slug={slug} businessName={b.name} maskedPhone={masked} emailHint={emailHint} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
       </>
     );
   }

@@ -2,7 +2,11 @@
 
 import { headers } from "next/headers";
 import { getDirectoryData } from "@/lib/directory/data";
-import { maskPhone, parseCode, parseSlug, smsBody, verifyMessage, type VerifyResult } from "@/lib/claim/input";
+import { parseClaimMethod, parseCode, parseSlug, smsBody, verifyMessage, maskPhone, type VerifyResult } from "@/lib/claim/input";
+import { renderClaimEmail } from "@/lib/email/claim-email";
+import { sendPostmark } from "@/lib/email/postmark";
+import { emailConfig } from "@/lib/email/server";
+import { baseUrl } from "@/lib/email/templates";
 import { isUuid } from "@/lib/admin/detail-input";
 import { sendSms, smsConfigFromEnv } from "@/lib/sms/twilio";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -10,7 +14,8 @@ import { authConfigured, createUserClient } from "@/lib/supabase/server";
 import { getTenant } from "@/lib/tenant/resolve";
 import { verifyTurnstile } from "@/lib/turnstile";
 
-export interface ClaimState { step: "start" | "code" | "done"; claimId?: string; sentTo?: string; error?: string; slug?: string }
+export interface ClaimState { step: "start" | "code" | "emailed" | "done"; claimId?: string; sentTo?: string; error?: string; slug?: string }
+const EMAIL_LINK_MINUTES = 60;
 const FAIL = "That did not work. Try again in a minute.";
 // claim_start raises readable messages for rule violations; show only those, never anything else.
 const friendly = (e: { code?: string; message?: string }) => (["22023", "53400", "P0002", "28000"].includes(e.code ?? "") && e.message ? e.message.charAt(0).toUpperCase() + e.message.slice(1) + "." : FAIL);
@@ -36,12 +41,32 @@ export async function startClaim(_prev: ClaimState, form: FormData): Promise<Cla
   if (!raw) return { step: "start", slug, error: "Unknown business." };
   if (raw.business.status !== "unclaimed") return { step: "start", slug, error: "This business has already been claimed." };
 
+  const method = parseClaimMethod(form.get("method"));
   const service = createServiceClient();
-  const { data, error } = await service.rpc("claim_start", { p_tenant: tenant.id, p_business: raw.business.id, p_user: user.id, p_method: "sms_code" });
+  const { data, error } = await service.rpc("claim_start", { p_tenant: tenant.id, p_business: raw.business.id, p_user: user.id, p_method: method });
   if (error || !data) return { step: "start", slug, error: error ? friendly(error) : FAIL };
   const c = data as { claim_id: string; secret: string; destination: string };
-
   const cancel = () => service.from("claims").update({ status: "cancelled" }).eq("id", c.claim_id);
+
+  if (method === "email_link") {
+    // The secret goes only into this one email. It is never stored, logged (outside local development), or returned to the browser.
+    const blocked = await service.rpc("email_is_blocked", { p_tenant: tenant.id, p_email: c.destination });
+    if (blocked.error || blocked.data === true) { await cancel(); return { step: "start", slug, error: blocked.error ? FAIL : "We cannot email the address on this listing. Choose the text message option, or contact us." }; }
+    const base = baseUrl((h.get("host") ?? "").toLowerCase());
+    const link = base ? `${base}/list-your-business/confirm?c=${c.claim_id}&t=${c.secret}` : null;
+    const cfg = emailConfig();
+    if (!link) { await cancel(); return { step: "start", slug, error: FAIL }; }
+    if (!cfg) {
+      if (process.env.NODE_ENV === "production") { await cancel(); return { step: "start", slug, error: "Email is not set up yet. Please try again later." }; }
+      console.warn(`[DEV ONLY: email not configured] claim link for ${slug}: ${link}`);        // never reached in production
+    } else {
+      const mail = renderClaimEmail({ tenantName: tenant.name, mailingAddress: null, contactEmail: null, businessName: raw.business.name, link, minutes: EMAIL_LINK_MINUTES });
+      const sent = await sendPostmark({ from: cfg.from, to: c.destination, ...mail, tag: "claim_link", metadata: { tenant_id: tenant.id, claim_id: c.claim_id } }, cfg);
+      if (!sent.ok) { await cancel(); return { step: "start", slug, error: "We could not send the email. Please try again in a minute." }; }
+    }
+    return { step: "emailed", slug, claimId: c.claim_id, sentTo: maskEmail(c.destination) };
+  }
+
   const cfg = smsConfigFromEnv();
   if (!cfg) {
     if (process.env.NODE_ENV === "production") { await cancel(); return { step: "start", slug, error: "Text messages are not set up yet. Please try again later." }; }
@@ -52,6 +77,8 @@ export async function startClaim(_prev: ClaimState, form: FormData): Promise<Cla
   }
   return { step: "code", slug, claimId: c.claim_id, sentTo: maskPhone(c.destination) ?? undefined };
 }
+
+const maskEmail = (e: string) => { const [l, d] = e.split("@"); return `${(l ?? "").slice(0, 1)}•••@${d ?? ""}`; };
 
 export async function verifyClaim(prev: ClaimState, form: FormData): Promise<ClaimState> {
   const slug = parseSlug(form.get("slug")) ?? undefined;

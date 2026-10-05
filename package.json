@@ -21,6 +21,7 @@
     "smoke:admin": "node scripts/smoke-admin.mjs",
     "e2e:admin": "node scripts/e2e-admin-forms.mjs",
     "e2e:claim": "node scripts/e2e-claim.mjs",
+    "e2e:claim-email": "node scripts/e2e-claim-email.mjs",
     "e2e:submissions": "node scripts/e2e-submissions.mjs",
     "e2e:moderation": "node scripts/e2e-moderation.mjs",
     "e2e:import": "node scripts/e2e-import.mjs",
