@@ -5,7 +5,7 @@
 set -euo pipefail
 : "${DATABASE_URL:?Set DATABASE_URL}"
 EMAIL="${1:?usage: make-owner.sh <email> <business-slug>}"; SLUG="${2:?usage: make-owner.sh <email> <business-slug>}"
-psql -X -q -v ON_ERROR_STOP=1 -v email="$EMAIL" -v slug="$SLUG" "$DATABASE_URL" <<'SQL'
+psql -X -q -v ON_ERROR_STOP=1 -v email="$EMAIL" -v slug="$SLUG" -d "$DATABASE_URL" <<'SQL'
 with u as (select id from auth.users where lower(email) = lower(:'email')),
      b as (select id, tenant_id from public.businesses where slug = :'slug')
 insert into public.business_owners (business_id, tenant_id, user_id)

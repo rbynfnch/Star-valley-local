@@ -20,7 +20,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown option: $1"; exit 2 ;;
   esac; shift
 done
-PSQL=(psql -X -q -v ON_ERROR_STOP=1 "$DATABASE_URL")
+PSQL=(psql -X -q -v ON_ERROR_STOP=1 -d "$DATABASE_URL")   # -d, not a bare argument: psql on Windows stops reading options after the first bare argument
 
 echo "== connecting"; "${PSQL[@]}" -t -A -c "select 'connected to ' || current_database() || ' as ' || current_user" 
 "${PSQL[@]}" -c "create table if not exists public._applied_migrations (name text primary key, applied_at timestamptz not null default now()); alter table public._applied_migrations enable row level security;"
